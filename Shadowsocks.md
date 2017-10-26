@@ -35,7 +35,7 @@ sudo ldconfig
     "local_address": "127.0.0.1",
     "local_port":1080,
     "password":"[password]",
-    "timeout":15,
+    "timeout":600,
     "method":"chacha20",
     "fast_open": false,
     "log-file":"/dev/null"
@@ -402,3 +402,10 @@ lsmod | grep bbr
 ```
 
 若有 `tcp_bbr` 模块即说明 bbr 已启动
+
+## 客户端
+
+- [Windows](https://github.com/shadowsocks/shadowsocks-windows/releases)
+- [Mac](https://github.com/shadowsocks/ShadowsocksX-NG/releases/)
+- [Android](https://github.com/shadowsocks/shadowsocks-android/releases)
+- [Openwrt](https://github.com/shadowsocks/openwrt-shadowsocks/releases)
