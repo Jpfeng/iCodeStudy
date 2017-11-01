@@ -76,7 +76,7 @@ greendao {
 
 ```java
 @Entity
-public class User {
+public class Note {
     ...
 }
 ```
@@ -95,7 +95,7 @@ public class User {
         generateConstructors = true,
         generateGettersSetters = true
 )
-public class User {
+public class Note {
     ...
 }
 ```
@@ -132,7 +132,7 @@ public class User {
 
 ```java
 @Entity
-public class User {
+public class Note {
     @Id(autoincrement = true)
     private Long id;
 
@@ -193,7 +193,7 @@ private String key;
 
 ```java
 @Entity
-public class User {
+public class Note {
     @Id
     private Long id;
 
@@ -236,23 +236,93 @@ or use @Generated (without hash) to allow to replace it.
 
 ## 操作数据库
 
+在操作数据库的示例中，我们使用 `Note` 实体作为例子。经过编译， GreenDAO 会自动生成 `NoteDao` 。
+
 ### 初始化
 
+通过 `DaoMaster` 的内部类 `DevOpenHelper` 可以得到一个 `SQLiteOpenHelper` 对象。通过该对象可以获得可读写的数据库对象 `SQLiteDatabase` 。调用 `DaoMaster(SQLiteDatabase)` 构造方法创建 `DaoMaster` 对象。调用 `DaoMaster` 的 `newSession()` 方法获得 `DaoSession` 对象。这些操作在程序中只需要进行一次，一般在 `Application` 中进行。
+
 ```java
-// do this once, for example in your Application class
-helper = new DaoMaster.DevOpenHelper(this, "notes-db", null);
-db = helper.getWritableDatabase();
-daoMaster = new DaoMaster(db);
-daoSession = daoMaster.newSession();
-// do this in your activities/fragments to get hold of a DAO
-noteDao = daoSession.getNoteDao();
+DaoMaster.DevOpenHelper openHelper = new DaoMaster.DevOpenHelper(context, "noteDb", null);
+SQLiteDatabase database = openHelper.getWritableDatabase();
+DaoMaster daoMaster = new DaoMaster(database);
+DaoSession daoSession = daoMaster.newSession();
+```
+
+在 `Activity` 或 `Fragment` 中，通过 `DaoSession` 对象获取 DAO ，并通过 DAO 进行数据库操作。
+
+```java
+NoteDao noteDao = daoSession.getNoteDao();
 ```
 
 ### 增
 
+新建实体对象。实体对象的 `Id` 传入 `null` ，在插入过程中会自动赋值并实现自增长。然后调用 `insert()` 方法新增一条数据。该方法返回插入数据的行 id 。
+
+```java
+Note note = new Note(...);
+noteDao.insert(note);
+```
+
+新增多条数据可以使用 `insertInTx(Iterable)` 方法。该方法会开启一个事务以添加所有数据。
+
+```java
+ArrayList<Note> entities = new ArrayList<>();
+entities.add(note);
+...
+noteDao.insertInTx(entities);
+```
+
 ### 删
 
+删除数据首先得到要删除对象的主键 `id` ，调用 `deleteByKey()` 通过 `id` 进行删除。
+
+```java
+noteDao.deleteByKey(primaryKey);
+```
+
+也可以直接通过实体对象，调用 `delete()` 方法进行删除。
+
+```java
+noteDao.delete(note);
+```
+
+删除多条数据可以使用 `deleteByKeyInTx(Iterable)` 或 `deleteInTx(Iterable)` 。这些方法会在一个事务中删除多条数据。
+
+```java
+ArrayList<Long> ids = new ArrayList<>();
+ids.add(id);
+...
+noteDao.deleteByKeyInTx(ids);
+
+ArrayList<Note> notes = new ArrayList<>();
+notes.add(note);
+...
+noteDao.deleteInTx(notes);
+```
+
+如果要删除所有数据，可以使用 `deleteAll()` 方法。
+
+```java
+noteDao.deleteAll();
+```
+
 ### 改
+
+修改数据可以调用 `update()` 方法。
+
+```java
+noteDao.update(note);
+```
+
+修改多条数据可以使用 `updateInTx(Iterable)` 方法。该方法会在一个事务中修改多条数据。
+
+```java
+ArrayList<Note> notes = new ArrayList<>();
+notes.add(note);
+...
+noteDao.updateInTx();
+```
 
 ### 查
 
