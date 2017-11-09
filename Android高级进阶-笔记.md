@@ -66,6 +66,41 @@
 <h2 id="part1">基础篇</h2>
 
 <h3 id="chap1.1">Android 触摸事件传递机制</h3>
+
+#### 触摸事件
+
+触摸事件对应 `MotionEvent` 类。
+
+- `ACTION_DOWN`
+
+    用户手指的按下操作。一个按下操作标志着一次触摸事件的开始。
+
+- `ACTION_MOVE`
+
+    用户手指按压屏幕后松开前，如果移动距离超过一定阈值，会被判定为 `ACTION_MOVE` 操作。一般情况下，手指的轻微移动会触发一系列的移动事件。
+
+- `ACTION_UP`
+
+    用户手指离开屏幕的操作。一次抬起操作标志着一次触摸事件的结束。
+
+在一次屏幕触摸操作中， `ACTION_DOWN` 和 `ACTION_UP` 这两个事件是必需的，而 `ACTION_MOVE` 视情况而定。
+
+#### 事件传递
+
+事件传递分为三个阶段：
+
+- 分发 Dispatch
+
+    事件分发对应 `dispatchTouchEvent(MotionEvent)` 方法。在该方法返回 `true` 表示事件被当前视图消费掉不再继续分发。方法返回 `false` 表示事件不再继续分发，传递回上层的 `onTouchEvent(MotionEvent)` 方法处理。方法返回 `super.dispatchTouchEvent(MotionEvent)` 表示继续分发该事件，并且如果当前视图是 `ViewGroup` 或其子类，会调用 `onInterceptTouchEvent(MotionEvent)` 方法判定是否拦截该事件。
+
+- 拦截 Intercept
+
+    事件拦截对应 `onInterceptTouchEvent(MotionEvent)` 方法。该方法只在 `ViewGroup` 及其子类中存在。该方法返回 `true` 表示拦截事件，不继续分发给子视图，传递给当前视图的 `onTouchEvent(MotionEvent)` 方法消费触摸事件。返回 `false` 或 `super.onInterceptTouchEvent(MotionEvent)` 表示不对事件进行拦截，继续传递给子视图。
+
+- 消费 Consume
+
+    事件消费对应 `onTouchEvent(MotionEvent)` 方法。该方法返回值为 `true` 表示当前视图消费该事件，事件将不会向上传递给上层视图。返回值为 `false` 或 `super.onTouchEvent(MotionEvent)` 表示当前视图不处理这个事件，事件传递给父视图的 `onTouchEvent(MotionEvent)` 方法进行处理。
+
 <h3 id="chap1.2">Android View 的绘制流程</h3>
 <h3 id="chap1.3">Android 动画机制</h3>
 <h3 id="chap1.4">Support Annotation Library 使用详解</h3>
