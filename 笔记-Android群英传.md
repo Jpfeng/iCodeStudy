@@ -4,6 +4,7 @@
 
 - [Android 体系与系统架构](#chap1)
 - [Android 开发工具](#chap2)
+- [Android 控件](#chap3)
 
 ------
 
@@ -60,3 +61,13 @@ Android Debug Bridge 位于 SDK 的 `platform-tools` 目录下。
 [↑ 目录](#index)
 
 ------
+
+<h2 id="chap3">Android 控件</h2>
+
+### Android 控件架构
+
+`View` 与 `ViewGroup` 。 `ViewGroup` 继承自 `View` ， `ViewGroup` 控件可以作为父控件包含多个 `View` 控件，并管理其包含的 `View` 控件。整个界面上的控件形成了一个树形结构，称为控件树。上层控件负责下层子控件的测量与绘制，并传递交互事件。每棵控件树的顶部，都有一个 `ViewParent` 对象，是整棵树的控制核心，所有的交互管理事件都由它来统一调度和分配。
+
+### View 测量
+
+### VIew 绘制
