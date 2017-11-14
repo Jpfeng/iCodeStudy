@@ -2,9 +2,11 @@
 
 <h2 id="index">目录</h2>
 
-- [Android 体系与系统架构](#chap1)
-- [Android 开发工具](#chap2)
-- [Android 控件](#chap3)
+- [第一章 Android 体系与系统架构](#chap1)
+- [第二章 Android 开发工具](#chap2)
+- [第三章 Android 控件](#chap3)
+- [第四章 ListView 使用](#chap4)
+- [第五章 Android Scroll 分析](#chap5)
 
 ------
 
@@ -166,7 +168,7 @@ Canvas mCanvas = new Canvas(bitmap2);
 
 #### 拓展现有控件
 
-例：拓展 TextView 创建新的控件。使其背景更加丰富，多绘制几层背景。
+**例：** 拓展 TextView 创建新的控件。使其背景更加丰富，多绘制几层背景。
 
 原生的 `TextView` 使用 `onDraw(Canvas)` 方法绘制显示的文字。当继承了原生的 `TextView` 之后，如果不重写其 `onDraw(Canvas)` 方法，则不会修改 `TextView` 的任何效果。在自定义的 TextView 中调用 `TextView#onDraw(Canvas)` 方法绘制显示的文字。在调用 `super.onDraw(Canvas)` 方法之前和之后，都可以实现自己的逻辑，分别在系统绘制文字前后，完成自己的操作。
 
@@ -205,7 +207,7 @@ protected void onDraw(Canvas canvas) {
 }
 ```
 
-例：拓展 TextView 创建新的控件。利用 `LinearGradient Shader` 和 `Matrix` 实现动态文字闪动效果。
+**例：** 拓展 TextView 创建新的控件。利用 `LinearGradient Shader` 和 `Matrix` 实现动态文字闪动效果。
 
 在 `onSizeChanged(int, int, int, int)` 方法中进行对象的初始化工作。使用 `getPaint()` 方法获取当前绘制 TextView 的 `Paint` 对象。根据 `View` 的宽度设置一个 `LinearGradient` 渐变渲染器，并设置给 `Paint` 对象。最后，在 `onDraw(Canvas)` 方法中，通过矩阵的方式来不断平移渐变效果，从而在绘制文字时，产生动态的闪动效果。
 
@@ -247,7 +249,7 @@ protected void onDraw(Canvas canvas) {
 
 对于应用程序中共通的 UI 界面，可以将界面抽象出来，形成一个共通的 UI 组件，在需要添加处引用。还可以给组件增加相应的接口，让调用者能够更加灵活地控制。这样不仅可以提高界面的复用率，更能在需要修改 UI 时，做到快速修改，而不需要对每个页面都进行修改。对于 UI 模板，应该具有 `通用性` 与 `可定制性` 。也就是说，我们需要给调用者以丰富的接口，让他们可以更改模板中的文字、颜色、行为等信息，而不是所有的模板都一样，那样就失去了模板的意义。
 
-例：自定义组合 TopBar 。
+**例：** 自定义组合 TopBar 。
 
 - 定义属性
 
@@ -482,9 +484,230 @@ protected void onDraw(Canvas canvas) {
 
 #### 重写 View 实现全新控件
 
+创建一个自定义 View ，难点在于绘制控件和实现交互。通常需要继承 `View` 类，并重写 `onDraw(Canvas)` `onMeasure(int, int)` 等方法实现绘制逻辑，同时通过重写 `onTouchEvent(MotionEvent)` 等触控事件来实现交互逻辑。还可以通过引入自定义属性，丰富自定义 View 的可定制性。
+
+**例：** 弧线展示图
+
+这个自定义 View 分为三个部分，分别是中间的圆形、中间显示的文字和外圈的弧线。在 `onDraw(Canvas)` 方法中一个个绘制即可。图形如果单独绘制，是非常容易的。这里进行了一下
+组合，就创建了一个新的 View 。
+
+在初始化时，设置好绘制三种图形的参数。圆和弧线的代码如下所示。绘制文字，只需要设置好文字的起始绘制位置。
+
+```java
+// 圆
+mCircleXY = length / 2;
+mRadius = (float) (length * 0.5 / 2);
+
+// 弧线
+mArcRectF = new RectF(
+(float) (length * 0.1),
+(float) (length * 0.1),
+(float) (length * 0.9),
+(float) (length * 0.9));
+```
+
+在 `onDraw(Canvas)` 方法中进行绘制。
+
+```java
+//绘制圆
+canvas.drawCircle(mCircleXY, mCircleXY, mRadius, mCirclePaint);
+//绘制弧线
+canvas.drawArc(mArcRectF, 270, mSweepAngle, false, mArcPaint);
+//绘制文字
+canvas.drawText(mShowText, 0, mShowText.length(),
+        mCircleXY, mCircleXY + (mShowTextSize / 4), mTextPaint);
+```
+
+创建一些方法让调用者设置不同的状态值。当用户不指定具体的比例值时，默认设置为 25 。
+
+```java
+public void setSweepValue(float sweepValue) {
+    if (sweepValue != 0) {
+        mSweepValue = sweepValue;
+    } else {
+        mSweepValue = 25;
+    }
+
+    this.invalidate();
+}
+```
+
+**例：** 音频条形图
+
+实现类似 PC 上某些音乐播放器根据音频音量大小显示的音频条形图。由于只是演示自定义 View 的用法，我们不去真实地监听音频输入，随机模拟一些数字。
+
+绘制一个个矩形，每个矩形之间稍微偏移一点距离。通过 `Math.random()` 方法随机改变这些高度值，并赋值给 `currentHeight` 。最后，使用 `postInvalidateDelayed(int)` 方法进行 View 的延迟重绘。
+
+```java
+@Override
+protected void onDraw(Canvas canvas) {
+    super.onDraw(canvas);
+    for (int i = 0; i < mRectCount; i++) {
+        mRandom = Math.random();
+        float currentHeight = (float) (mRectHeight * mRandom);
+        canvas.drawRect((float) (mWidth * 0.4 / 2 + mRectWidth * i + offset), currentHeight,
+                (float) (mWidth * 0.4 / 2 + mRectWidth * (i + 1)), mRectHeight, mPaint);
+    }
+
+    postInvalidateDelayed(300);
+}
+```
+
+为了使自定义 View 更加逼真，可以在绘制小矩形的时候，给 `Paint` 对象增加一个 `LinearGradient` 渐变效果。
+
+```java
+@Override
+protected void onSizeChanged(int w, int h, int oldw, int oldh) {
+    super.onSizeChanged(w, h, oldw, oldh);
+    mWidth = getWidth();
+    mRectHeight = getHeight();
+    mRectWidth = (int) (mWidth * 0.6 / mRectCount);
+    mLinearGradient = new LinearGradient(0, 0, mRectWidth, mRectHeight,
+            Color.YELLOW, Color.BLUE, Shader.TileMode.CLAMP);
+    mPaint.setShader(mLinearGradient);
+}
+```
+
 ### 自定义 ViewGroup
 
+自定义 ViewGroup 通常需要重写 `onMeasure(int, int)` 方法来对子 View 进行测量。重写 `onLayout(boolean, int, int, int, int)` 方法来确定子 View 的位置。重写 `onTouchEvent(MotionEvent)` 方法增加响应事件。
+
+**例：** 实现 `ScrollView` 所具有的上下滑动功能。但是在滑动的过程中，增加一个黏性的效果。即当一个子 View 向上滑动大于一定的距离后，松开手指，它将自动向上滑动，显示下一个子 View 。
+
+首先放置好子 View 。使用遍历的方式通知子 View 对自身进行测量。
+
+> 控件正确的高度应为 `screenHeight * childCount` ，即子 View 的个数乘以屏幕的高度。书中使用设置 `LayoutParams` 的方式改变 ViewGroup 的高度。经实践，这样设置后调用 `getHeight()` 方法总是返回控件在屏幕占有的高度，无法返回正确的控件高度。在此调用 `setMeasuredDimension(int, int)` 方法控制控件的测量高度，从而使 `getHeight()` 方法返回正确的控件高度。
+
+```java
+@Override
+protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+    super.onMeasure(widthMeasureSpec, heightMeasureSpec);
+
+    int count = getChildCount();
+    for (int i = 0; i < count; ++i) {
+        View childView = getChildAt(i);
+        measureChild(childView, widthMeasureSpec, heightMeasureSpec);
+    }
+
+    int h = MeasureSpec.makeMeasureSpec(mScreenHeight * count,
+            MeasureSpec.getMode(heightMeasureSpec));
+    setMeasuredDimension(widthMeasureSpec, h);
+}
+```
+
+通过遍历来设定子 View 放置的位置。直接调用子 View 的 `layout(int, int, int, int)` 方法，并将具体的位置作为参数传入。主要修改每个子 View 的 `top` 和 `bottom` 属性，让它们依次排列。
+
+```java
+@Override
+protected void onLayout(boolean changed, int l, int t, int r, int b) {
+    int childCount = getChildCount();
+
+    // 设置ViewGroup的高度
+    // MarginLayoutParams mlp = (MarginLayoutParams) getLayoutParams();
+    // mlp.height = mScreenHeight * childCount;
+    // setLayoutParams(mlp);
+
+    for (int i = 0; i < childCount; i++) {
+        View child = getChildAt(i);
+        if (child.getVisibility() != View.GONE) {
+            child.layout(l, i * mScreenHeight, r, (i + 1) * mScreenHeight);
+        }
+    }
+}
+```
+
+重写 `onTouchEvent(MotionEvent)` 方法，为 ViewGroup 添加响应事件。使用 `scrollBy(int, int)` 方法辅助滑动。在 `MotionEvent` 的 `ACTION_MOVE` 事件中，调用 `scrollBy(0, dy)` 方法，手指滑动时让 ViewGroup 中的所有子 View 也跟着滚动 dy 距离即可。在 `ACTION_UP` 事件中判断手指滑动的距离。如果超过一定距离，则使用 `Scroller` 类平滑移动到下一个子 View 。如果小于一定距离，则回滚原来的位置。
+
+```java
+@Override
+public boolean onTouchEvent(MotionEvent event) {
+    int y = (int) event.getY();
+    switch (event.getAction()) {
+        case MotionEvent.ACTION_DOWN:
+            mLastY = y;
+            mStart = getScrollY();
+            break;
+
+        case MotionEvent.ACTION_MOVE:
+            if (!mScroller.isFinished()) {
+                mScroller.abortAnimation();
+            }
+
+            int dy = mLastY - y;
+            if (getScrollY() < 0) {
+                dy = 0;
+            }
+
+            if (getScrollY() > getHeight() - mScreenHeight) {
+                dy = 0;
+            }
+
+            scrollBy(0, dy);
+            mLastY = y;
+            break;
+
+        case MotionEvent.ACTION_UP:
+            mEnd = getScrollY();
+            int dScrollY = mEnd - mStart;
+
+            if (dScrollY > 0) {
+                if (dScrollY < mScreenHeight / 3) {
+                    mScroller.startScroll(0, getScrollY(), 0, -dScrollY);
+                } else {
+                    mScroller.startScroll(0, getScrollY(), 0, mScreenHeight - dScrollY);
+                }
+
+            } else {
+                if (-dScrollY < mScreenHeight / 3) {
+                    mScroller.startScroll(0, getScrollY(), 0, -dScrollY);
+                } else {
+                    mScroller.startScroll(0, getScrollY(), 0, -mScreenHeight - dScrollY);
+                }
+            }
+            break;
+    }
+
+    postInvalidate();
+    return true;
+}
+```
+
+最后加上 `computeScroll()` 的代码。
+
+```java
+@Override
+public void computeScroll() {
+    super.computeScroll();
+    if (mScroller.computeScrollOffset()) {
+        scrollTo(0, mScroller.getCurrY());
+        postInvalidate();
+    }
+}
+```
+
+这样就实现了一个简单的黏性 ScrollView 。其中仍然存在一些 bug ，并且还可以进一步添加一些功能，比如滑动的惯性效果等。这些功能可以在后面慢慢添加，这也是一个控件的迭代过程。
+
 ### 事件拦截机制
+
+***TODO***
+
+[↑ 目录](#index)
+
+------
+
+<h2 id="chap4">ListView 使用</h2>
+
+***TODO***
+
+[↑ 目录](#index)
+
+------
+
+<h2 id="chap5">Android Scroll 分析</h2>
+
+### 产生滑动效果的原因
+
+### 滑动效果的实现
 
 [↑ 目录](#index)
 
