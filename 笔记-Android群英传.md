@@ -7,6 +7,7 @@
 - [第三章 Android 控件](#chap3)
 - [第四章 ListView 使用](#chap4)
 - [第五章 Android Scroll 分析](#chap5)
+- [第六章 Android 绘图机制](#chap6)
 
 ------
 
@@ -705,9 +706,429 @@ public void computeScroll() {
 
 <h2 id="chap5">Android Scroll 分析</h2>
 
-### 产生滑动效果的原因
+### 坐标系和触控事件
+
+滑动一个 View 本质就是移动一个 View ，改变其当前所处的位置。它的原理是不断改变 View 的坐标来实现这一效果。实现 View 的滑动，必须监听用户触摸的事件，并根据事件传入的坐标，动态且不断地改变 View 的坐标，从而实现 View 跟随用户触摸的滑动而滑动。
+
+在 Android 中，将屏幕最左上角的顶点作为 Android 坐标系的原点。从这个点向右是 X 轴正方向，从这个点向下是 Y 轴正方向。系统提供了 `getLocationOnScreen(int[])` 方法获取 Android 坐标系中点的位置，即该视图左上角在 Android 坐标系中的坐标。在触控事件中使用 `getRawX()` 和 `getRawY()` 方法获得的坐标同样是 Android 坐标系中的坐标。
+
+除此之外还有视图坐标系，它描述子视图在父视图中的位置关系。视图坐标系同样是以原点向右为 X 轴正方向，以原点向下为 Y 轴正方向。但是在视图坐标系中，原点不再是 Android 坐标系中的屏幕左上角，而是以父视图左上角为坐标原点。在触控事件中通过 `getX()` 和 `getY()` 获得的坐标是视图坐标系中的坐标。
+
+```text
+坐标原点 (0,0)
+    .-----------→ x轴
+    |
+    |
+    |
+    |
+    |
+    ↓ y轴
+```
+
+触控事件 `MotionEvent` 在用户交互中，占着举足轻重的地位。 `MotionEvent` 中封装的一些常用的事件常量，定义了触控事件的不同类型。
+
+```java
+// 单点触摸按下动作
+public static final int ACTION_DOWN = 0;
+// 单点触摸离开动作
+public static final int ACTION_UP = 1;
+// 触摸点移动动作
+public static final int ACTION_MOVE = 2;
+// 触摸动作取消
+public static final int ACTION_CANCEL = 3;
+// 触摸动作超出边界
+public static final int ACTION_OUTSIDE = 4;
+// 多点触摸按下动作
+public static final int ACTION_POINTER_DOWN = 5;
+// 多点离开动作
+public static final int ACTION_POINTER_UP = 6;
+```
+
+通常，在 `onTouchEvent(MotionEvent)` 方法中通过 `event.getAction()` 方法获取触控事件的类型，并使用 `switch-case` 进行筛选。代码的模式基本固定。在不涉及多点操作的情况下，通常可以使用以下代码完成触控事件的监听。
+
+```java
+@Override
+public boolean onTouchEvent(MotionEvent event) {
+    //获取当前输入点的X、Y坐标（视图坐标）
+    int x = (int) event.getX();
+    int y = (int) event.getY();
+
+    switch (event.getAction()) {
+        case MotionEvent.ACTION_DOWN:
+        //处理输入的按下事件
+        break;
+
+        case MotionEvent.ACTION_MOVE:
+        //处理输入的移动事件
+        break;
+
+        case MotionEvent.ACTION_UP:
+        //处理输入的离开事件
+        break;
+    }
+    return true;
+}
+```
+
+在 Android 中，系统提供了非常多的方法来获取坐标值、相对距离等。
+
+- `View` 提供的获取坐标方法
+
+  - `getTop()`
+
+    获取到的是 View 自身的顶边到其父布局顶边的距离
+
+  - `getLeft()`
+
+    获取到的是 View 自身的左边到其父布局左边的距离
+
+  - `getRight()`
+
+    获取到的是 View 自身的右边到其父布局左边的距离
+
+  - `getBottom()`
+
+    获取到的是 View 自身的底边到其父布局顶边的距离
+
+- `MotionEvent` 提供的获取坐标方法
+
+  - `getX()`
+
+    获取点击事件距离控件左边的距离，即视图坐标
+
+  - `getY()`
+
+    获取点击事件距离控件顶边的距离，即视图坐标
+
+  - `getRawX()`
+
+    获取点击事件距离整个屏幕左边的距离，即绝对坐标
+
+  - `getRawY()`
+
+    获取点击事件距离整个屏幕顶边的距离，即绝对坐标
 
 ### 滑动效果的实现
+
+实现滑动效果的思想基本是一致的。当触摸 View 时，系统记下当前触摸点坐标。当手指移动时，系统记下移动后的触摸点坐标，从而获取到相对于前一次坐标点的偏移量，并通过偏移量来修改
+View的坐标。不断重复，从而实现滑动过程。
+
+- `layout(int, int, int, int)`
+
+    可以通过修改 View 的 `left` ， `top` ， `right` ， `bottom` 四个属性来控制 View 的坐标。在 `ACTION_DOWN` 事件中记录触摸点的坐标，在 `ACTION_MOVE` 事件中计算偏移量。将偏移量作用到 `layout(int, int, int, int)` 方法中，在目前 Layout 的 `left` ， `top` ， `right` ， `bottom` 基础上，增加计算出来的偏移量。每次移动后， View 都会调用 `layout(int, int, int, int)` 方法重新布局，从而达到移动 View 的效果。
+
+    可使用 `getX()` 和 `getY()` 方法获取坐标值，即通过视图坐标来获取偏移量。
+
+    ```java
+    @Override
+    public boolean onTouchEvent(MotionEvent event) {
+        int x = (int) event.getX();
+        int y = (int) event.getY();
+
+        switch (event.getAction()) {
+            case MotionEvent.ACTION_DOWN:
+                // 记录触摸点坐标
+                lastX = x;
+                lastY = y;
+            break;
+
+            case MotionEvent.ACTION_MOVE:
+                // 计算偏移量
+                int offsetX = x - lastX;
+                int offsetY = y - lastY;
+
+                // 在当前 left ， top ， right ， bottom 的基础上加上偏移量
+                layout(getLeft() + offsetX, getTop() + offsetY,
+                        getRight() + offsetX, getBottom() + offsetY);
+            break;
+        }
+
+        return true;
+    }
+    ```
+
+    还可以使用 `getRawX()` 和 `getRawY()` 获取坐标，并使用绝对坐标来计算偏移量。使用绝对坐标系，在每次执行 `ACTION_MOVE` 的逻辑后，要重新设置初始坐标才能准确地获取偏移量。
+
+    ```java
+    @Override
+    public boolean onTouchEvent(MotionEvent event) {
+        int rawX = (int) (event.getRawX());
+        int rawY = (int) (event.getRawY());
+
+        switch (event.getAction()) {
+            case MotionEvent.ACTION_DOWN:
+                // 记录触摸点坐标
+                lastX = rawX;
+                lastY = rawY;
+            break;
+
+            case MotionEvent.ACTION_MOVE:
+                // 计算偏移量
+                int offsetX = rawX - lastX;
+                int offsetY = rawY - lastY;
+
+                // 在当前 left ， top ， right ， bottom 的基础上加上偏移量
+                layout(getLeft() + offsetX, getTop() + offsetY,
+                        getRight() + offsetX, getBottom() + offsetY);
+
+                // 重新设置初始坐标
+                lastX = rawX;
+                lastY = rawY;
+            break;
+        }
+
+        return true;
+    }
+    ```
+
+- `offsetLeftAndRight(int)` 与 `offsetTopAndBottom(int)`
+
+    该方法相当于系统提供的对左右、上下移动的 API 封装。当计算出偏移量后，只需要使用如下代码就可以完成 View 的重新布局。效果与使用 `layout(int, int, int, int)` 方法相同。计算 `offset` 的方法与使用 `layout(int, int, int, int)` 方法时相同。
+
+    ```java
+    // 同时对 left 和 right 进行偏移
+    offsetLeftAndRight(offsetX);
+
+    // 同时对 top 和 bottom 进行偏移
+    offsetTopAndBottom(offsetY);
+    ```
+
+- `LayoutParams`
+
+    `LayoutParams` 保存 View 的布局参数。可以在程序中，通过改变 `LayoutParams` 来动态修改一个布局的位置参数，从而达到改变 View 位置的效果。可以使用 `getLayoutParams()` 方法获取 View 的 `LayoutParams` ，并且需要根据 View 所在父布局的类型来转换不同的类型。偏移量的方法与使用 `layout(int, int, int, int)` 方法中计算 offset 一样。在通过改变 `LayoutParams` 来改变一个 View 的位置时，通常改变的是这个 View 的 `Margin` 属性。当获取到偏移量之后，可以通过`setLayoutParams(LayoutParams)` 方法改变其 `LayoutParams` 。
+
+    ```java
+    LinearLayout.LayoutParams layoutParams = (LinearLayout.LayoutParams) getLayoutParams();
+    layoutParams.leftMargin = getLeft() + offsetX;
+    layoutParams.topMargin = getTop() + offsetY;
+    setLayoutParams(layoutParams);
+    ```
+
+    还可以使用 `ViewGroup.MarginLayoutParams` 实现这样的功能。这样更加方便，不需要考虑父布局的类型。
+
+    ```java
+    ViewGroup.MarginLayoutParams layoutParams = (ViewGroup.MarginLayoutParams) getLayoutParams();
+    layoutParams.leftMargin = getLeft() + offsetX;
+    layoutParams.topMargin = getTop() + offsetY;
+    setLayoutParams(layoutParams);
+    ```
+
+- `scrollTo(int, int)` 与 `scrollBy(int, int)`
+
+    在 View 中提供了 `scrollTo(int, int)` 和 `scrollBy(int, int)` 两种方式改变一个 View 的位置。这两个方法的区别为， `scrollTo(x, y)` 表示移动到一个具体坐标点 (x, y) ，而 `scrollBy(dx, dy)` 表示移动的增量为 dx 和 dy 。如果在 `ViewGroup` 中使用 `scrollTo(int, int)` 或 `scrollBy(int, int)` 方法，移动的将是所有子 View 。如果在 View 中使用，移动的将是 View 的内容。在 View 中使用这两个方法拖动这个 View ，应该在 View 所在的 ViewGroup 中使用来移动它的子 View 。如果将参数 `dx` 和 `dy` 设置为正数，那么 content 将向坐标轴负方向移动。如果将参数 `dx` 和 `dy` 设置为负数，那么 content 将向坐标轴正方向移动。如果使用 `layout(int, int, int, int)` 时计算偏移量的方法，要实现跟随手指移动而滑动的效果，就必须将偏移量改为负值。在使用绝对坐标时，也可以通过使用 `scrollTo(x, y)` 方法实现这一效果。
+
+    ```java
+    int offsetX = x - lastX;
+    int offsetY = y - lastY;
+    ((View) getParent()).scrollBy(-offsetX, -offsetY);
+    ```
+
+- `Scroller`
+
+    使用 `scrollTo(int, int)` 或 `scrollBy(int, int)` 方法，子 View 的平移都是瞬间发生的，在事件执行的时候平移就已经完成了。而 `Scroller` 类可以实现平滑移动的效果，而不是瞬间完成的移动。
+
+    **例：**让子 View 跟随手指滑动。但是在手指离开屏幕时，让子 View 平滑的移动到初始位置。
+
+  - 初始化 `Scroller`
+
+    通过它的构造方法来创建一个 `Scroller` 对象。
+
+    ```java
+    // 初始化 Scroller
+    mScroller = new Scroller(context);
+    ```
+
+  - 重写 `computeScroll()` 方法，实现模拟滑动
+
+    系统会在绘制 View 时在 `draw(Canvas)` 中调用该方法。该方法实际上使用 `scrollTo(int, int)` 方法，结合 `Scroller` 对象，帮助获取当前的滚动值。通过不断地瞬间移动一个小的距离，实现整体上的平滑移动效果。 `Scroller` 类提供了 `computeScrollOffset()` 方法判断是否完成了整个滑动。同时也提供了 `getCurrX()` 和 `getCurrY()` 方法来获得当前的滑动坐标。在代码中需要注意 `invalidate()` 方法。因为只能在 `computeScroll()` 方法中获取模拟过程中的 `scrollX` 和 `scrollY` 坐标。但 `computeScroll()` 方法不会自动调用，只能通过 `invalidate() → draw(Canvas) → computeScroll()` 来间接调用 `computeScroll()` 方法。所以需要在代码中调用 `invalidate()` 方法，实现循环获取 `scrollX` 和 `scrollY` 的目的。当模拟过程结束后， `Scroller#computeScrollOffset()` 方法会返回 `false` ，从而中断循环，完成整个平滑移动过程。
+
+    ```java
+    @Override
+    public void computeScroll() {
+        super.computeScroll();
+
+        // 判断Scroller是否执行完毕
+        if (mScroller.computeScrollOffset()) {
+            ((View) getParent()).scrollTo(mScroller.getCurrX(), mScroller.getCurrY());
+
+            // 通过重绘来不断调用 computeScroll
+            invalidate();
+        }
+    }
+    ```
+
+  - `startScroll()` 开启模拟过程
+
+    `startScroll()` 方法具有两个重载方法。它们的区别就是一个具有指定的持续时长，而另一个没有。其他四个坐标，与它们的命名含义相同，是起始坐标与偏移量。
+
+    - public void startScroll(int startX, int startY, int dx, int dy, int duration)
+    - public void startScroll(int startX, int startY, int dx, int dy)
+
+    可以使用 `getScrollX()` 和 `getScrollY()` 方法获取父视图中 content 所滑动到的点的坐标。要监听手指离开屏幕的事件，需要在 `onTouchEvent(NotionEvent)` 中增加一个 `ACTION_UP` 监听选项。并在该事件中通过调用 `startScroll()` 方法完成平滑移动。需要注意的还是 `invalidate()` 方法，要使用这个方法来通知 View 进行重绘，从而调用 `computeScroll()` 的模拟过程。也可以给 `startScroll()` 方法增加一个 `duration` 参数设置滑动的持续时长。
+
+    ```java
+    case MotionEvent.ACTION_UP:
+        //手指离开时，执行滑动过程
+        View viewGroup = ((View) getParent());
+        mScroller.startScroll(viewGroup.getScrollX(), viewGroup.getScrollY(),
+                -viewGroup.getScrollX(), -viewGroup.getScrollY());
+        invalidate();
+        break;
+    ```
+
+- 属性动画
+
+    可以使用属性动画完成 View 的滑动特效。在 [第七章](#chap7) 中将详细讲解如何使用属性动画控制 View 的移动效果。
+
+- `ViewDragHelper`
+
+    通过 `ViewDragHelper` 类基本可以实现各种不同的滑动、拖放需求。
+
+    **例：**实现类似 QQ 滑动侧边栏的布局。初始时显示内容界面。当用户手指滑动超过一段距离时，内容界面侧滑显示菜单界面。
+
+  - 初始化 `ViewDragHelper`
+
+    `ViewDragHelper` 通常定义在一个 `ViewGroup` 的内部，并通过其静态工厂方法进行初始化。第一个参数是要监听的 `View` ，通常是一个 `ViewGroup` ，即 `parentView` 。第二个参数是 `Callback` 回调，这个回调是整个 `ViewDragHelper` 的逻辑核心。
+
+    ```java
+    mViewDragHelper = ViewDragHelper.create(this, callback);
+    ```
+
+  - 拦截事件
+
+    重写事件拦截方法，将事件传递给 `ViewDragHelper` 进行处理。
+
+    ```java
+    @Override
+    public boolean onInterceptTouchEvent(MotionEvent ev) {
+        return mViewDragHelper.shouldInterceptTouchEvent(ev);
+    }
+
+    @Override
+    public boolean onTouchEvent(MotionEvent event) {
+        // 将触摸事件传递给 ViewDragHelper ，此操作必不可少
+        mViewDragHelper.processTouchEvent(event);
+        return true;
+    }
+    ```
+
+  - 处理 `computeScroll()`
+
+    使用 `ViewDragHelper` 需要重写 `computeScroll()` 方法。因为 `ViewDragHelper` 内部是通过 `Scroller` 实现平滑移动的。
+
+    ```java
+    @Override
+    public void computeScroll() {
+        if (mViewDragHelper.continueSettling(true)) {
+            ViewCompat.postInvalidateOnAnimation(this);
+        }
+    }
+    ```
+
+  - 处理回调 `ViewDragHelper.Callback`
+
+    创建 `ViewDragHelper.Callback` 对象。需要重写 `tryCaptureView(View, int)` 方法。通过这个方法，可以指定在创建 `ViewDragHelper` 时，参数 `parentView` 中的哪一个子 View 可以被移动。这里指定 `MainView` 是可以被拖动的。
+
+    ```java
+    @Override
+    public boolean tryCaptureView(View child, int pointerId) {
+        // 如果当前触摸的 child 是 mMainView 时开始检测
+        return mMainView == child;
+    }
+    ```
+
+    具体的滑动方法有 `clampViewPositionVertical(View, int, int)` 和 `clampViewPositionHorizontal(View, int, int)` ，分别对应垂直和水平方向上的滑动。如果要实现滑动效果，那么必须要重写这两个方法。因为它默认的返回值为 0 ，即不发生滑动。只重写其中的一个，就只会实现该方向上的滑动效果。方法中第二个 `int` 参数代表在方向上子 View 移动的距离。而第三个 `int` 参数表示比较前一次的增量。通常只需要返回 `top` 和 `left` 即可。但当需要更加精确地计算 `padding` 等属性的时候，就需要进行一些处理，并返回合适大小的值。
+
+    ```java
+    // 处理垂直滑动
+    @Override
+    public int clampViewPositionVertical(View child, int top, int dy) {
+        return 0;
+    }
+
+    // 处理水平滑动
+    @Override
+    public int clampViewPositionHorizontal(View child, int left, int dx) {
+        return left;
+    }
+    ```
+
+    此时已经可以实现最基本的滑动效果。当用手拖动 `MainView` 的时候，它就可以跟随手指的滑动而滑动了。
+
+    在 `ViewDragHelper.Callback` 中提供了 `onViewReleased(View, float, float)` 方法。通过重写这个方法，可以实现当手指离开屏幕后的操作。设置让 `MainView` 移动后左边距小于 500px 时，使用 `smoothSlideViewTo(View, int, int)` 方法将 `MainView` 还原到初始状态，即坐标为 `(0, 0)` 的点。而当其左边距大于 500px 时，将 `MainView` 移动到 `(300, 0)` 坐标，即显示 `MenuView` 。
+
+    ```java
+    @Override
+    public void onViewReleased(View releasedChild, float xvel, float yvel) {
+        super.onViewReleased(releasedChild, xvel, yvel);
+
+        // 手指抬起后缓慢移动到指定位置
+        if (mMainView.getLeft() < 500) {
+            // 关闭菜单
+            // 相当于 Scroller#startScroll() 方法
+            mViewDragHelper.smoothSlideViewTo(mMainView, 0, 0);
+            ViewCompat.postInvalidateOnAnimation(MenuLayout.this);
+
+        } else {
+            // 打开菜单
+            mViewDragHelper.smoothSlideViewTo(mMainView, 300, 0);
+            ViewCompat.postInvalidateOnAnimation(MenuLayout.this);
+        }
+    }
+    ```
+
+    在自定义 ViewGroup 的 `onFinishInflate()` 方法中，按顺序将子 View 分别定义成 `MenuView` 和 `MainView` ，并在 `onSizeChanged(int, int, int, int)` 方法中获得 View 的宽度。如果需要根据 View 的宽度处理滑动后的效果，可以使用这个值进行判断。
+
+    ```java
+    @Override
+    protected void onFinishInflate() {
+        super.onFinishInflate();
+        mMenuView = getChildAt(0);
+        mMainView = getChildAt(1);
+    }
+
+    @Override
+    protected void onSizeChanged(int w, int h, int oldw, int oldh) {
+        super.onSizeChanged(w, h, oldw, oldh);
+        mWidth = mMenuView.getMeasuredWidth();
+    }
+    ```
+
+    在 `ViewDragHelper.Callback` 中，系统定义了大量的监听方法处理各种事件。例如：
+
+    - `onViewCaptured(View, int)`
+
+    在用户触摸到 View 后回调。
+
+    - `onViewDragStateChanged(int)`
+
+    在拖拽状态改变时回调，如 `idle` ， `dragging` 等状态。
+
+    - `onViewPositionChanged(View, int, int, int, int)`
+
+    在位置改变时回调，常用于滑动时更改 `scale` 进行缩放等效果。
+
+[↑ 目录](#index)
+
+------
+
+<h2 id="chap6">Android 绘图机制</h2>
+
+### 屏幕信息
+
+### 2D 绘图
+
+### XML 绘图
+
+### 绘图技巧
+
+### 图像色彩特效处理
+
+### 图形特效处理
+
+### 画笔特效处理
+
+### SurfaceView
 
 [↑ 目录](#index)
 
