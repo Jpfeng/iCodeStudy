@@ -1098,15 +1098,15 @@ View的坐标。不断重复，从而实现滑动过程。
 
     - `onViewCaptured(View, int)`
 
-    在用户触摸到 View 后回调。
+        在用户触摸到 View 后回调。
 
     - `onViewDragStateChanged(int)`
 
-    在拖拽状态改变时回调，如 `idle` ， `dragging` 等状态。
+        在拖拽状态改变时回调，如 `idle` ， `dragging` 等状态。
 
     - `onViewPositionChanged(View, int, int, int, int)`
 
-    在位置改变时回调，常用于滑动时更改 `scale` 进行缩放等效果。
+        在位置改变时回调，常用于滑动时更改 `scale` 进行缩放等效果。
 
 [↑ 目录](#index)
 
@@ -1116,7 +1116,248 @@ View的坐标。不断重复，从而实现滑动过程。
 
 ### 屏幕信息
 
+- 屏幕大小
+
+    指屏幕对角线的长度。通常使用 `英寸` 来度量。
+
+- 分辨率
+
+    指手机屏幕的像素点个数。例如 `1080 × 1920` 就是指屏幕的分辨率。指宽有 `1080` 个像素点，而高有 `1920` 个像素点。
+
+- PPI
+
+    每英寸像素 (`Pixels Per Inch`) 又被称为 `DPI` (`Dots Per Inch`) 。它是由对角线的像素点数除以屏幕的大小得到的。
+
+- 屏幕密度
+
+    每个厂商的 Android 手机具有不同的大小尺寸和像素密度的屏幕。 Android 系统如果要精确到每种 DPI 的屏幕，那基本是不可能的。因此，系统定义了几个标准的 DPI 值，作为手机的固定 DPI 。
+
+    | 密度    | 密度值 | 分辨率       |
+    | :----: | :---: | :---------: |
+    | ldpi   | 120   | 240 × 320   |
+    | mdpi   | 160   | 320 × 480   |
+    | hdpi   | 240   | 480 × 800   |
+    | xhdpi  | 320   | 720 × 1280  |
+    | xxhdpi | 480   | 1080 × 1920 |
+
+- 独立像素密度
+
+    由于屏幕密度的不同，导致同样像素大小的长度，在不同密度的屏幕上显示长度不同。因为相同长度的屏幕，高密度的屏幕包含更多的像素点。 Android 系统使用 `mdpi` 屏幕作为标准，在这个屏幕上 `1px = 1dp` 。其他屏幕则可以通过比例进行换算。我们可以得出在各个密度值中的换算公式，在 `mdpi` 中 `1dp = 1px` ，在 `hdpi` 中 `1dp = 1.5px` ，在 `xhdpi` 中 `1dp = 2px` ，在 `xxhdpi` 中 `1dp = 3px` 。
+
+#### 单位转换
+
+在程序中，可以非常方便地对这些单位进行转换。
+
+```java
+/**
+ * dp sp px 转换工具类
+ */
+public class DisplayUtil {
+
+    /**
+     * 将 px 值转换为 dp 值，保证尺寸大小不变
+     *
+     * @param pxValue px 值
+     * @return dp 值
+     */
+    public static int px2dp(Context context, float pxValue) {
+        // 换算比例， DisplayMetrics 类中属性 density
+        final float scale = context.getResources().getDisplayMetrics().density;
+        return (int) (pxValue / scale + 0.5f);
+    }
+
+    /**
+     * 将 dp 值转换为 px 值，保证尺寸大小不变
+     *
+     * @param dipValue dp 值
+     * @return px 值
+     */
+    public static int dp2px(Context context, float dipValue) {
+        // 换算比例， DisplayMetrics 类中属性 density
+        final float scale = context.getResources().getDisplayMetrics().density;
+        return (int) (dipValue * scale + 0.5f);
+    }
+
+    /**
+     * 将 dp 值转换为 px 值，使用 TypedValue 类进行转换
+     *
+     * @param dp dp 值
+     * @return px 值
+     */
+    public static int dp2px(Context context, int dp) {
+        return (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, dp,
+                context.getResources().getDisplayMetrics());
+    }
+
+    /**
+     * 将 px 值转换为 sp 值，保证文字大小不变
+     *
+     * @param pxValue px 值
+     * @return sp 值
+     */
+    public static int px2sp(Context context, float pxValue) {
+        // 换算比例， DisplayMetrics 类中属性 scaledDensity
+        final float fontScale = context.getResources().getDisplayMetrics().scaledDensity;
+        return (int) (pxValue / fontScale + 0.5f);
+    }
+
+    /**
+     * 将 sp 值转换为 px 值，保证文字大小不变
+     *
+     * @param spValue sp 值
+     * @return px 值
+     */
+    public static int sp2px(Context context, float spValue) {
+        // 换算比例， DisplayMetrics 类中属性 scaledDensity
+        final float fontScale = context.getResources().getDisplayMetrics().scaledDensity;
+        return (int) (spValue * fontScale + 0.5f);
+    }
+
+    /**
+     * 将 sp 值转换为 px 值，使用 TypedValue 类进行转换
+     *
+     * @param sp sp 值
+     * @return px 值
+     */
+    public static int sp2px(Context context, int sp) {
+        return (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, sp,
+                context.getResources().getDisplayMetrics());
+    }
+}
+```
+
 ### 2D 绘图
+
+系统的 `Canvas` 对象提供了各种绘制图像的 API 。 `Paint` 功能也很强大，列举一些它的属性和对应的功能：
+
+- `setAntiAlias(boolean)`
+
+    设置画笔的抗锯齿效果
+
+- `setColor(int)`
+
+    设置画笔的颜色
+
+- `setARGB(int, int, int, int)`
+
+    设置画笔的 `A` `R` `G` `B` 值
+
+- `setAlpha(int)`
+
+    设置画笔的 `Alpha` 值
+
+- `setTextSize(float)`
+
+    设置字体的尺寸
+
+- `setStyle(Style)`
+
+    设置画笔的风格，如空心或实心等
+
+    ```java
+    // 空心风格
+    paint.setStyle(Paint.Style.STROKE);
+    // 实心风格
+    paint.setStyle(Paint.Style.FILL);
+    ```
+
+- `setStrokeWidth(float)`
+
+    设置空心边框的宽度
+
+`Canvas` 对象提供的绘制图像 API ：
+
+- `drawPoint(float, float, Paint)`
+
+    绘制点。
+
+    ```java
+    canvas.drawPoint(x, y, paint);
+    ```
+
+- `drawLine(float, float, float, float, Paint)`
+
+    绘制直线。
+
+    ```java
+    canvas.drawLine(startX, startY, endX, endY, paint);
+    ```
+
+- `drawLines(float[], Paint)`
+
+    绘制多条直线。
+
+    ```java
+    float[] pts = {
+            startX1, startX1, endX1, endY1,
+            ...
+            startXn, startYn, endYn, endYn};
+    canvas.drawLines(pts, paint);
+    ```
+
+- `drawRect(float, float, float, float, Paint)`
+
+    绘制矩形。
+
+    ```java
+    canvas.drawRect(left, top, right, bottom, paint);
+    ```
+
+- `drawRoundRect(float, float, float, float, float, float, Paint)`
+
+    绘制圆角矩形。
+
+    ```java
+    canvas.drawRoundRect(left, top, right, bottom, radiusX, radiusY, paint);
+    ```
+
+- `drawCircle(float, float, float, Paint)`
+
+    绘制圆。
+
+    ```java
+    canvas.drawCircle(circleX, circleY, radius, paint);
+    ```
+
+- `drawArc(float, float, float, float, float, float, boolean, Paint)`
+
+    绘制弧形、扇形。绘制弧形与扇形的区分是第七个 `boolean` 参数。
+
+    ```java
+    // 绘制扇形
+    canvas.drawArc(left, top, right, bottom, startAngle, sweepAngle, true, paint);
+    // 绘制弧形
+    canvas.drawArc(left, top, right, bottom, startAngle, sweepAngle, false, paint);
+    ```
+
+- `drawOval(float, float, float, float, Paint)`
+
+    通过椭圆的外接矩形来绘制椭圆。
+
+    ```java
+    canvas.drawOval(left, top, right, bottom, paint);
+    ```
+
+- `drawText(String, float, float, Paint)`
+
+    绘制文本。
+
+    ```java
+    canvas.drawText(text, startX, startY, paint);
+    ```
+
+- `drawPath(Path, Paint)`
+
+    绘制路径。
+
+    ```java
+    Path path = new Path();
+    path.moveTo(50, 50);
+    path.lineTo(100, 100);
+    path.lineTo(100, 300);
+    path.lineTo(300, 50);
+    canvas.drawPath(path, paint);
+    ```
 
 ### XML 绘图
 
