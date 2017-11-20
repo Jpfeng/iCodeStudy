@@ -8,6 +8,7 @@
 - [第四章 ListView 使用](#chap4)
 - [第五章 Android Scroll 分析](#chap5)
 - [第六章 Android 绘图机制](#chap6)
+- [第七章 Android 动画机制](#chap7)
 
 ------
 
@@ -1361,15 +1362,422 @@ public class DisplayUtil {
 
 ### XML 绘图
 
+- `Bitmap`
+
+    在 XML 中使用 `Bitmap` 代码如下所示。通过这样引用图片，可以将图片直接转成 `Bitmap` 在程序中使用。
+
+    ```xml
+    <?xml version="1.0" encoding="utf-8"?>
+    <bitmap xmlns:android="http://schemas.android.com/apk/res/android"
+    android:src="@mipmap/ic_launcher" />
+    ```
+
+- `Shape`
+
+    通过 `Shape` 可以在 XML 中绘制各种形状。
+
+    ```xml
+    <!-- 默认为 rectangle -->
+    <shape xmlns:android="http://schemas.android.com/apk/res/android"
+        android:shape="[rectangle | oval | line | ring]" >
+
+        <!-- 当 shape=“rectangle” 时使用 -->
+            <!-- android:radius 半径，会被后面的单个半径属性覆盖。默认为 1dp -->
+        <corners
+            android:radius="integer"
+            android:topLeftRadius="integer"
+            android:topRightRadius="integer"
+            android:bottomLeftRadius="integer"
+            android:bottomRightRadius="integer" />
+
+        <!-- 渐变 -->
+        <gradient
+            android:angle="integer"
+            android:centerX="integer"
+            android:centerY="integer"
+            android:centerColor="integer"
+            android:endColor="color"
+            android:gradientRadius="integer"
+            android:startColor="color"
+            android:type="[linear | radial | sweep]"
+            android:useLevel="[true | false]" />
+
+        <padding
+            android:left="integer"
+            android:top="integer"
+            android:right="integer"
+            android:bottom="integer" />
+
+        <!-- 指定大小。一般用在 imageview 配合 scaleType 属性使用 -->
+        <size
+            android:width="integer"
+            android:height="integer" />
+
+        <!-- 填充颜色 -->
+        <solid
+            android:color="color" />
+
+        <!-- 指定边框 -->
+            <!-- android:dashWidth 虚线宽度 -->
+            <!-- android:dashGap 虚线间隔宽度 -->
+        <stroke
+            android:width="integer"
+            android:color="color"
+            android:dashWidth="integer"
+            android:dashGap="integer" />
+    </shape>
+    ```
+
+- `Layer`
+
+    可以通过 `Layer` 实现图层的概念。
+
+    ```xml
+    <?xml version="1.0" encoding="utf-8"?>
+    <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+        <!-- 图片1 -->
+        <item android:drawable="@mipmap/ic_launcher" />
+
+        <!-- 图片2 -->
+        <item
+            android:bottom="10dp"
+            android:drawable="@mipmap/ic_launcher"
+            android:left="10dp"
+            android:right="10dp"
+            android:top="10dp" />
+    </layer-list>
+    ```
+
+- `Selector`
+
+    `Selector` 的作用在于实现静态绘图中的事件反馈。通过给不同的事件设置不同的图像，从而在程序中根据用户输入，返回不同的效果。这一方法可以迅速制作 View 的触摸反馈。通过配置不同的触发事件， `Selector` 可以自动选择不同的图片。通常情况下，这些方法都可以共同作用。
+
+    ```xml
+    <?xml version="1.0" encoding="utf-8" ?>
+    <selector xmlns:android="http://schemas.android.com/apk/res/android">
+        <!-- 默认时的背景图片 -->
+        <item android:drawable="@drawable/X1" />
+
+        <!-- 没有焦点时的背景图片 -->
+        <item android:drawable="@drawable/X2"
+            android:state_window_focused="false" />
+
+        <!-- 非触摸模式下获得焦点并单击时的背景图片 -->
+        <item android:drawable="@drawable/X3"
+            android:state_focused="true"
+            android:state_pressed="true" />
+
+        <!-- 触摸模式下单击时的背景图片 -->
+        <item android:drawable="@drawable/X4"
+            android:state_focused="false"
+            android:state_pressed="true" />
+
+        <!-- 选中时的图片背景 -->
+        <item android:drawable="@drawable/X5"
+            android:state_selected="true" />
+
+        <!-- 获得焦点时的图片背景 -->
+        <item android:drawable="@drawable/X6"
+            android:state_focused="true" />
+    </selector>
+    ```
+
 ### 绘图技巧
+
+#### `Canvas`
+
+`Canvas` 作为绘制图形的直接对象，提供了以下几个方法。
+
+- `Canvas#save()`
+
+    将之前的所有已绘制图像保存，让后续的操作类似在一个新的图层上操作。
+
+- `Canvas#restore()`
+
+    将调用 `save()` 之后绘制的所有图像与调用 `save()` 之前的图像进行合并。
+
+- `Canvas#translate(float, float)`
+
+    将坐标系平移。调用 `translate(x, y)` 方法之后，将原点 `(0, 0)` 移动到 `(x, y)` 。之后的所有绘图操作都将以 `(x, y)` 为原点执行。
+
+- `Canvas#rotate(float)`
+
+    将坐标系翻转。将坐标系旋转一定的角度。
+
+**例：**创建一个仪表盘
+
+```java
+// 画外圆
+Paint paintCircle = new Paint();
+paintCircle.setStyle(Paint.Style.STROKE);
+paintCircle.setAntiAlias(true);
+paintCircle.setStrokeWidth(5);
+canvas.drawCircle(mWidth / 2, mHeight / 2, mWidth / 2, paintCircle);
+
+// 画刻度
+Paint painDegree = new Paint();
+painDegree.setStrokeWidth(3);
+for (int i = 0; i < 24; i++) {
+    // 区分整点与非整点
+    if (i == 0 || i == 6 || i == 12 || i == 18) {
+        painDegree.setStrokeWidth(5);
+        painDegree.setTextSize(30);
+        canvas.drawLine(mWidth / 2, mHeight / 2 - mWidth / 2,
+                mWidth / 2, mHeight / 2 - mWidth / 2 + 60, painDegree);
+        String degree = String.valueOf(i);
+        canvas.drawText(degree, mWidth / 2 - painDegree.measureText(degree) / 2,
+                mHeight / 2 - mWidth / 2 + 90, painDegree);
+
+    } else {
+        painDegree.setStrokeWidth(3);
+        painDegree.setTextSize(15);
+        canvas.drawLine(mWidth / 2, mHeight / 2 - mWidth / 2,
+                mWidth / 2, mHeight / 2 - mWidth / 2 + 30, painDegree);
+        String degree = String.valueOf(i);
+        canvas.drawText(degree, mWidth / 2 - painDegree.measureText(degree) / 2,
+                mHeight / 2 - mWidth / 2 + 60, painDegree);
+    }
+
+    // 通过旋转画布简化坐标运算
+    canvas.rotate(15, mWidth / 2, mHeight / 2);
+}
+
+// 画指针
+Paint paintHour = new Paint();
+paintHour.setStrokeWidth(20);
+Paint paintMinute = new Paint();
+paintMinute.setStrokeWidth(10);
+
+canvas.save();
+canvas.translate(mWidth / 2, mHeight / 2);
+canvas.drawLine(0, 0, 100, 100, paintHour);
+canvas.drawLine(0, 0, 100, 200, paintMinute);
+canvas.restore();
+```
+
+#### `Layer`
+
+一张复杂的图像可以由多个图层叠加形成一个图像。在 Android 中，使用 `saveLayer(float, float, float, float, Paint)` 方法创建一个图层，图层基于栈的结构进行管理。 Android 通过调用 `saveLayer(float, float, float, float, Paint)` 方法以及 `savaLayerAlpha(float, float, float, float, int)` 方法将一个图层入栈。使用 `restore()` 方法以及 `restoreToCount(int)` 方法将一个图层出栈。入栈时，后面所有的操作都发生在这个图层上。出栈时，会把图像绘制到上层 Canvas 上。
 
 ### 图像色彩特效处理
 
+***TODO***
+
 ### 图形特效处理
+
+***TODO***
 
 ### 画笔特效处理
 
-### SurfaceView
+***TODO***
+
+### `SurfaceView`
+
+`View` 可以满足大部分的绘图需求。 `View` 通过刷新来重绘视图。 Android 系统通过发出 `VSYNC` 信号进行屏幕的重绘，刷新的间隔时间为 16ms 。如果在 16ms 内 `View` 完成了所有操作，那么用户在视觉上，就不会产生卡顿的感觉。而如果执行的操作逻辑太多，特别是需要频繁刷新的界面上，就会不断阻塞主线程，从而导致画面卡顿。为了避免这一问题的产生， Android 系统提供了 `SurfaceView` 组件解决这个问题。 `SurfaceView` 与 `View` 的区别主要体现在以下几点：
+
+- `View` 主要适用于主动更新的情况下，而 `SurfaceView` 主要适用于被动更新，例如频繁地刷新。
+- `View` 在主线程中对画面进行刷新，而 `SurfaceView` 通常会通过一个子线程来进行页面的刷新。
+- `View` 在绘图时没有使用双缓冲机制，而 `SurfaceView` 在底层实现机制中就已经实现了双缓冲机制。
+
+如果自定义 View 需要频繁刷新，或者刷新时数据处理量比较大，可以考虑使用 `SurfaceView` 取代 `View` 。
+
+通常情况下，使用以下步骤来创建 `SurfaceView` 模板。
+
+- 创建 `SurfaceView`
+
+    创建自定义 SurfaceView 继承自 `android.view.SurfaceView` ，重写构造方法。实现 `SurfaceHolder.Callback` 和 `Runnable` 两个接口并实现接口的方法。
+
+- 初始化 `SurfaceView`
+
+    在自定义的 SurfaceView 中，通常需要定义三个成员变量。然后需要初始化一个 `SurfaceHolder` 对象，并注册 `SurfaceHolder` 的回调方法。
+
+- 使用 `SurfaceView`
+
+    在 `surfaceCreated(SurfaceHolder)` 方法中开启子线程进行绘制。子线程使用 `while(mIsDrawing)` 循环不停地进行绘制。在绘制的具体逻辑中，通过 `SurfaceHolder` 对象的 `lockCanvas()` 方法，可以获得当前的 `Canvas` 绘图对象。在循环中会一直获取同一个 `Canvas` 对象。因此，之前的绘图操作都将被保留。如果需要擦除，可以在绘制前通过 `drawColor(int)` 方法进行清屏操作。绘制结束后通过 `mHolder.unlockCanvasAndPost(mCanvas)` 方法对画布内容进行提交。将语句放到 `finally` 代码块中，来保证每次都能将内容提交。
+
+完整模版代码：
+
+```java
+public class SurfacePainter extends SurfaceView implements SurfaceHolder.Callback, Runnable {
+
+    // SurfaceHolder
+    private SurfaceHolder mHolder;
+    // 用于绘图的 Canvas
+    private Canvas mCanvas;
+    // 子线程标志位
+    private boolean mIsDrawing;
+
+    public SurfacePainter(Context context) {
+        this(context, null);
+    }
+
+    public SurfacePainter(Context context, AttributeSet attrs) {
+        this(context, attrs, 0);
+    }
+
+    public SurfacePainter(Context context, AttributeSet attrs, int defStyleAttr) {
+        super(context, attrs, defStyleAttr);
+        init();
+    }
+
+    private void init() {
+        mHolder = getHolder();
+        mHolder.addCallback(this);
+
+        // 其他的一些设置
+        setFocusable(true);
+        setFocusableInTouchMode(true);
+        this.setKeepScreenOn(true);
+    }
+
+    @Override
+    public void surfaceCreated(SurfaceHolder holder) {
+        mIsDrawing = true;
+        new Thread(this).start();
+    }
+
+    @Override
+    public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
+    }
+
+    @Override
+    public void surfaceDestroyed(SurfaceHolder holder) {
+        mIsDrawing = false;
+    }
+
+    @Override
+    public void run() {
+        while (mIsDrawing) {
+            drawContent();
+        }
+    }
+
+    private void drawContent() {
+        try {
+            mCanvas = mHolder.lockCanvas();
+            // 在 mCanvas 上进行绘图操作
+
+        } catch (Exception e) {
+            e.printStackTrace();
+
+        } finally {
+            if (mCanvas != null)
+                mHolder.unlockCanvasAndPost(mCanvas);
+        }
+    }
+```
+
+**例：**绘制一个正弦曲线。使用一个 `Path` 对象保存正弦函数上的坐标点，在子线程的 `while` 循环中，不断改变横纵坐标值。
+
+```java
+@Override
+public void run() {
+    while (mIsDrawing) {
+        draw();
+        x += 1;
+        y = (int) (100 * Math.sin(x * 2 * Math.PI / 180) + 400);
+        mPath.lineTo(x, y);
+    }
+}
+
+private void draw() {
+    try {
+        mCanvas = mHolder.lockCanvas();
+        // SurfaceView背景
+        mCanvas.drawColor(Color.WHITE);
+        mCanvas.drawPath(mPath, mPaint);
+
+    } catch (Exception e) {
+        e.printStackTrace();
+
+    } finally {
+        if (mCanvas != null){
+            mHolder.unlockCanvasAndPost(mCanvas);
+        }
+    }
+}
+```
+
+**例：**实现一个简单的绘图板。在 `SurfaceView#onTouchEvent(MotionEvent)` 中记录 `Path` 路径，通过 `Path` 对象进行绘图。并在 `draw()` 方法中进行绘制。绘制不需要很频繁。因此我们可以在子线程中进行 `sleep` 操作，尽可能地节省系统资源。判断 `draw()` 方法所用逻辑时长确定 `sleep` 的时长， `sleep` 时间的取值一般在 50ms 到 100ms 左右。
+
+```java
+@Override
+public boolean onTouchEvent(MotionEvent event) {
+    int x = (int) event.getX();
+    int y = (int) event.getY();
+
+    switch (event.getAction()) {
+        case MotionEvent.ACTION_DOWN:
+            mPath.moveTo(x, y);
+            break;
+
+        case MotionEvent.ACTION_MOVE:
+            mPath.lineTo(x, y);
+            break;
+
+        case MotionEvent.ACTION_UP:
+            break;
+    }
+
+    return true;
+}
+
+@Override
+public void run() {
+    long start = System.currentTimeMillis();
+
+    while (mIsDrawing) {
+        draw();
+    }
+
+    long end = System.currentTimeMillis();
+
+    if (end - start < 100) {
+        try {
+            Thread.sleep(100 - (end - start));
+
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+}
+
+private void draw() {
+    try {
+        mCanvas = mHolder.lockCanvas();
+        mCanvas.drawColor(Color.WHITE);
+        mCanvas.drawPath(mPath, mPaint);
+
+    } catch (Exception e) {
+        e.printStackTrace();
+
+    } finally {
+        if (mCanvas != null){
+            mHolder.unlockCanvasAndPost(mCanvas);
+        }
+    }
+}
+```
+
+[↑ 目录](#index)
+
+------
+
+<h2 id="chap7">Android 动画机制</h2>
+
+### View 动画
+
+### 属性动画
+
+### 布局动画
+
+### 插值器 `Interpolators`
+
+### 自定义动画
+
+### SVG 矢量动画
+
+### 动画示例
 
 [↑ 目录](#index)
 
