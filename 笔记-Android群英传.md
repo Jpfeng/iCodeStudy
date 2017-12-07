@@ -928,7 +928,7 @@ View的坐标。不断重复，从而实现滑动过程。
 
     使用 `scrollTo(int, int)` 或 `scrollBy(int, int)` 方法，子 View 的平移都是瞬间发生的，在事件执行的时候平移就已经完成了。而 `Scroller` 类可以实现平滑移动的效果，而不是瞬间完成的移动。
 
-    **例：**让子 View 跟随手指滑动。但是在手指离开屏幕时，让子 View 平滑的移动到初始位置。
+    **例：** 让子 View 跟随手指滑动。但是在手指离开屏幕时，让子 View 平滑的移动到初始位置。
 
   - 初始化 `Scroller`
 
@@ -985,7 +985,7 @@ View的坐标。不断重复，从而实现滑动过程。
 
     通过 `ViewDragHelper` 类基本可以实现各种不同的滑动、拖放需求。
 
-    **例：**实现类似 QQ 滑动侧边栏的布局。初始时显示内容界面。当用户手指滑动超过一段距离时，内容界面侧滑显示菜单界面。
+    **例：** 实现类似 QQ 滑动侧边栏的布局。初始时显示内容界面。当用户手指滑动超过一段距离时，内容界面侧滑显示菜单界面。
 
   - 初始化 `ViewDragHelper`
 
@@ -1504,7 +1504,7 @@ public class DisplayUtil {
 
     将坐标系翻转。将坐标系旋转一定的角度。
 
-**例：**创建一个仪表盘
+**例：** 创建一个仪表盘
 
 ```java
 // 画外圆
@@ -1667,7 +1667,7 @@ public class SurfacePainter extends SurfaceView implements SurfaceHolder.Callbac
     }
 ```
 
-**例：**绘制一个正弦曲线。使用一个 `Path` 对象保存正弦函数上的坐标点，在子线程的 `while` 循环中，不断改变横纵坐标值。
+**例：** 绘制一个正弦曲线。使用一个 `Path` 对象保存正弦函数上的坐标点，在子线程的 `while` 循环中，不断改变横纵坐标值。
 
 ```java
 @Override
@@ -1698,7 +1698,9 @@ private void draw() {
 }
 ```
 
-**例：**实现一个简单的绘图板。在 `SurfaceView#onTouchEvent(MotionEvent)` 中记录 `Path` 路径，通过 `Path` 对象进行绘图。并在 `draw()` 方法中进行绘制。绘制不需要很频繁。因此我们可以在子线程中进行 `sleep` 操作，尽可能地节省系统资源。判断 `draw()` 方法所用逻辑时长确定 `sleep` 的时长， `sleep` 时间的取值一般在 50ms 到 100ms 左右。
+**例：** 实现一个简单的绘图板。在 `SurfaceView#onTouchEvent(MotionEvent)` 中记录 `Path` 路径，通过 `Path` 对象进行绘图。并在 `draw()` 方法中进行绘制。绘制不需要很频繁。因此我们可以在子线程中进行 `sleep` 操作，尽可能地节省系统资源。判断 `draw()` 方法所用逻辑时长确定 `sleep` 的时长， `sleep` 时间的取值一般在 50ms 到 100ms 左右。
+
+> 此处书中示例代码有误。 `run()` 方法中代码应整体都在 `while` 循环内。
 
 ```java
 @Override
@@ -1724,20 +1726,18 @@ public boolean onTouchEvent(MotionEvent event) {
 
 @Override
 public void run() {
-    long start = System.currentTimeMillis();
-
     while (mIsDrawing) {
+        long start = System.currentTimeMillis();
         draw();
-    }
+        long end = System.currentTimeMillis();
 
-    long end = System.currentTimeMillis();
+        if (end - start < 100) {
+            try {
+                Thread.sleep(100 - (end - start));
 
-    if (end - start < 100) {
-        try {
-            Thread.sleep(100 - (end - start));
-
-        } catch (InterruptedException e) {
-            e.printStackTrace();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
         }
     }
 }
@@ -1765,9 +1765,315 @@ private void draw() {
 
 <h2 id="chap7">Android 动画机制</h2>
 
-### View 动画
+### View 动画 `Animation`
 
-### 属性动画
+`Animation` 框架定义了透明度、旋转、缩放和位移几种常见的动画，而且控制的是整个 `View` 。实现原理是每次绘制视图时 `View` 所在的 `ViewGroup` 中的 `drawChild(Canvas, View, long)` 函数获取该 `View` 的 `Transformation` 对象，然后调用 `canvas.concat(transformToApply.getMatrix())` 通过矩阵运算完成动画帧。如果动画没有完成，就继续调用 `invalidate()` 函数，启动下次绘制来驱动动画，从而完成整个动画的绘制。
+
+视图动画提供了 `AlphaAnimation` ， `RotateAnimation` ， `TranslateAnimation` 和 `ScaleAnimation` 四种动画方式，并提供了 `AnimationSet` 动画集合混合使用多种动画。视图动画非常大的缺陷是不具备交互性。当某个元素发生视图动画后，其响应事件的位置还依然在动画开始前的地方，所以视图动画只能做普通的动画效果，避免交互的发生。但是它的优点也非常明显，即效率比较高且使用方便。
+
+视图动画使用非常简单，不仅可以通过XML文件来描述一个动画过程，同样也可以使用代码来控制整个动画过程。
+
+- `AlphaAnimation`
+
+    为视图增加透明度的变换动画。
+
+    ```java
+    AlphaAnimation aa = new AlphaAnimation(fromAlpha, toAlpha);
+    aa.setDuration(durationMillis);
+    view.startAnimation(aa);
+    ```
+
+- `RotateAnimation`
+
+    为视图增加旋转的变换动画。
+
+    ```java
+    RotateAnimation ra = new RotateAnimation(fromDegrees, toDegrees, pivotX, pivotY);
+    ra.setDuration(durationMillis);
+    view.startAnimation(ra);
+    ```
+
+    其参数分别为旋转的起始角度，结束角度和旋转中心点的 X Y 坐标。也可以通过设置参数来控制旋转动画的参考系。可取值为 `Animation.ABSOLUTE` ， `Animation.RELATIVE_TO_SELF` 或 `Animation.RELATIVE_TO_PARENT` 。
+
+    ```java
+    RotateAnimation ra = new RotateAnimation(fromDegrees, toDegrees, pivotXType, pivotXValue,
+            pivotYType, pivotYValue);
+    ra.setDuration(durationMillis);
+    view.startAnimation(ra);
+    ```
+
+- `TranslateAnimation`
+
+    为视图移动时增加位移动画。
+
+    ```java
+    TranslateAnimation ta = new TranslateAnimation(fromXDelta, toXDelta, fromYDelta, toYDelta);
+    ta.setDuration(durationMillis);
+    view.startAnimation(ta);
+    ```
+
+- `ScaleAnimation`
+
+    为视图的缩放增加动画效果。
+
+    ```java
+    ScaleAnimation sa = new ScaleAnimation(fromX, toX, fromY, toY);
+    sa.setDuration(durationMillis);
+    view.startAnimation(sa);
+    ```
+
+    与旋转动画一样，缩放动画也可以设置缩放的中心点。
+
+    ```java
+    ScaleAnimation sa = new ScaleAnimation(fromX, toX, fromY, toY,
+            pivotXType, pivotXValue, pivotYType, pivotYValue);
+    sa.setDuration(durationMillis);
+    view.startAnimation(sa);
+    ```
+
+- `AnimationSet`
+
+    通过 `AnimationSet` ，可以将动画以组合的形式展现出来。
+
+    ```java
+    AnimationSet as = new AnimationSet(shareInterpolator);
+    as.setDuration(durationMillis);
+
+    AlphaAnimation aa = new AlphaAnimation(fromAlpha, toAlpha);
+    aa.setDuration(durationMillis);
+    as.addAnimation(aa);
+
+    TranslateAnimation ta = new TranslateAnimation(fromXDelta, toXDelta, fromYDelta, toYDelta);
+    ta.setDuration(durationMillis);
+    as.addAnimation(ta);
+
+    view.startAnimation(as);
+    ```
+
+对于动画事件，Android 也提供对应的监听回调，通过监听回调，可以获取到动画的开始、结束和重复事件，并针对相应的事件做出不同的处理。要添加相应的监听方法，代码如下所示。
+
+```java
+animation.setAnimationListener(new Animation.AnimationListener() {
+    @Override
+    public void onAnimationStart(Animation animation) {
+    }
+
+    @Override
+    public void onAnimationEnd(Animation animation) {
+    }
+
+    @Override
+    public void onAnimationRepeat(Animation animation) {
+    }
+});
+
+```
+
+### 属性动画 `Animator`
+
+动画框架 `Animation` 存在一些局限性，动画改变的只是显示，并不能响应事件。因此，在 Android 3.0 之后， Google 提出了属性动画帮助开发者实现更加丰富的动画效果。
+
+在 `Animator` 框架中使用最多的是 `AnimatorSet` 和 `ObjectAnimator` 配合。使用 `ObjectAnimator` 进行更精细化控制，只控制一个对象的一个属性值。使用多个 `ObjectAnimator` 组合到 `AnimatorSet` 形成一个动画。而且 `ObjectAnimator` 能够自动驱动，可以调用 `setFrameDelay(longframeDelay)` 设置动画帧之间的间隙时间，调整帧率，减少动画过程中频繁绘制界面，而在不影响动画效果的前提下减少 CPU 资源消耗。最重要的是，属性动画通过调用属性的 get ， set 方法真实地控制了一个 View 的属性值，因此强大的属性动画框架，基本可以实现所有的动画效果。
+
+- `ObjectAnimator`
+
+    创建 `ObjectAnimator` 需通过他的静态工厂类直接返回 `ObjectAnimator` 对象。参数包括一个对象和对象的属性名字。这个属性必须有 `get` 和 `set` 函数，内部会通过 Java 反射机制来调用 `set` 函数修改对象属性值。也可以调用 `setInterpolator(TimeInterpolator)` 设置相应的差值器。
+
+    ```java
+    ObjectAnimator animator = ObjectAnimator.ofFloat(target, propertyName, values);
+    animator.setDuration(durationMillis);
+    animator.start();
+    ```
+
+    通过 `ObjectAnimator` 的静态工厂方法，创建 `ObjectAnimator` 对象。第一个参数是需要操纵的 View 。第二个参数是要操纵的属性。最后一个参数是一个可变数组参数，需要传入该属性变化的取值过程。也可以给属性动画设置显示时长、差值器等属性，这些参数与在视图动画中的设置方法类似。
+
+    在使用 `ObjectAnimator` 的时候，有一点非常重要。要操纵的属性必须具有 `get` 和 `set` 方法，不然 `ObjectAnimator` 就无法起效。下面就是一些常用的可以直接使用属性动画的属性值。
+
+  - `translationX` 和 `translationY`
+
+    这两个属性作为一种增量控制 `View` 对象从它布局容器的左上角坐标开始的位置。
+
+  - `rotation` `rotationX` 和 `rotationY`
+
+    这三个属性控制 `View` 对象围绕支点进行 2D 和 3D 旋转。
+
+  - `scaleX` 和 `scaleY`
+
+    这两个属性控制 `View` 对象围绕它的支点进行 2D 缩放。
+
+  - `pivotX` 和 `pivotY`
+
+    这两个属性控制 `View` 对象的支点位置，围绕这个支点进行旋转和缩放变换处理。默认情况下，该支点的位置就是 `View` 对象的中心点。
+
+  - `x` 和 `y`
+
+    这是两个简单实用的属性。它描述了 `View` 对象在它的容器中的最终位置，它是最初的左上角坐标和 `translationX` `translationY` 值的累计和。
+
+  - `alpha`
+
+    它表示 `View` 对象的 alpha 透明度。默认值是 1 不透明， 0 代表完全透明。
+
+  如果一个属性没有 `get` `set` 方法，有两种方案来解决这个问题。一个是通过自定义一个属性类或者包装类，来间接地给这个属性增加 `get` `set` 方法。或者通过 `ValueAnimator` 来实现。这里看看如何使用包装类的方法给一个属性增加 `get` `set` 方法，代码如下所示。
+
+    ```java
+    private static class WrapperView {
+        private View mTarget;
+        public WrapperView(View target) {
+            mTarget = target;
+        }
+
+        public int getWidth() {
+            return mTarget.getLayoutParams().width;
+        }
+
+        public void setWidth(int width) {
+            mTarget.getLayoutParams().width = width;
+            mTarget.requestLayout();
+        }
+    }
+    ```
+
+    使用时只需要操纵包装类就可以间接调用到 `get` `set` 方法了，代码如下所示。
+
+    ```java
+    ViewWrapper wrapper = new ViewWrapper(targetView);
+    ObjectAnimator
+            .ofInt(wrapper, "width", values)
+            .setDuration(durationMillis)
+            .start();
+    ```
+
+- `ValueAnimator`
+
+    `ValueAnimator` 是属性动画的核心， `ObjectAnimator` 也是继承自 `ValueAnimator` 。`ValueAnimator` 本身不提供任何动画效果。它像一个数值发生器，用来产生具有一定规律的数字，从而让调用者来控制动画的实现过程。 `ValueAnimator` 的一般使用方法为在 `ValueAnimator` 的 `AnimatorUpdateListener` 中监听数值的变换，从而完成动画的变换。
+
+    ```java
+    ValueAnimator animator = ValueAnimator.ofFloat(values);
+    animator.setTarget(view);
+    animator.setDuration(durationMillis);
+    animator.start();
+    animator.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
+        @Override
+        public void onAnimationUpdate(ValueAnimator animation) {
+            Float value = (Float) animation.getAnimatedValue();
+            // use the value
+        }
+    });
+    ```
+
+- `PropertyValuesHolder`
+
+    在属性动画中，如果针对同一个对象的多个属性同时作用多种动画，可以使用 `PropertyValuesHolder` 来实现。比如平移动画，如果需要在平移的过程中，同时改变 X Y 轴的缩放。分别使用 `PropertyValuesHolder` 对象来控制 `translationX` `scaleX` `scaleY` 三个属性，最后调用 `ObjectAnimator.ofPropertyValuesHolder(Object, PropertyValuesHolder...)` 方法实现多属性动画的共同作用。代码如下所示。
+
+    ```java
+    PropertyValuesHolder pvh1 = PropertyValuesHolder.ofFloat("translationX", values1);
+    PropertyValuesHolder pvh2 = PropertyValuesHolder.ofFloat("scaleX", values2);
+    PropertyValuesHolder pvh3 = PropertyValuesHolder.ofFloat("scaleY", values3);
+    ObjectAnimator
+            .ofPropertyValuesHolder(view, pvh1, pvh2, pvh3)
+            .setDuration(durationMillis)
+            .start();
+    ```
+
+- `AnimatorSet`
+
+    对于一个属性同时作用多个属性动画效果，可以使用 `PropertyValuesHolder` 实现。但 `AnimatorSet` 不仅能实现这样的效果，同时也能实现更为精确的顺序控制。在属性动画中， `AnimatorSet` 通过 `playTogether(Animator...)` ， `playSequentially(Animator...)` ， `play(Animator).with(Animator)` ， `play(Animator).before(Animator)` ， `play(Animator).after(Animator)` 这些方法控制多个动画的协同工作，从而做到对动画播放顺序的精确控制。如果使用 `AnimatorSet` 实现上面的动画效果，代码如下所示。
+
+    ```java
+    ObjectAnimator animator1 = ObjectAnimator.ofFloat(view, "translationX", values1);
+    ObjectAnimator animator2 = ObjectAnimator.ofFloat(view, "scaleX", values2);
+    ObjectAnimator animator3 = ObjectAnimator.ofFloat(view, "scaleY", values3);
+    AnimatorSet set = new AnimatorSet();
+    set.setDuration(durationMillis);
+    set.playTogether(animator1, animator2, animator3);
+    set.start();
+    ```
+
+- `AnimatorListener`
+
+    一个完整的动画具有 `Start` `Repeat` `End` `Cancel` 四个过程，通过 Android 提供的接口，可以很方便地监听到这四个事件，代码如下所示。
+
+    ```java
+    ObjectAnimator anim = ObjectAnimator.ofFloat(view, "alpha", values);
+
+    anim.addListener(new AnimatorListener() {
+        @Override
+        public void onAnimationStart(Animator animation) {
+        }
+
+        @Override
+        public void onAnimationRepeat(Animator animation) {
+        }
+
+        @Override
+        public void onAnimationEnd(Animator animation) {
+        }
+
+        @Override
+        public void onAnimationCancel(Animator animation) {
+        }
+    });
+
+    anim.start();
+    ```
+
+    大部分的时候，我们只关心 `onAnimationEnd` 事件，所以 Android 也提供了一个 `AnimatorListenerAdapter` 让我们选择必要的事件进行监听，代码如下所示。
+
+    ```java
+    anim.addListener(new AnimatorListenerAdapter() {
+        @Override
+        public void onAnimationEnd(Animator animation) {
+        }
+    });
+    ```
+
+- `XML` 定义
+
+    属性动画同视图动画一样，也可以直接写在 XML 文件中，写法很相似。代码如下所示。
+
+    ```xml
+    <?xml version="1.0" encoding="utf-8"?>
+    <objectAnimator xmlns:android="http://schemas.android.com/apk/res/android"
+        android:duration="1000"
+        android:propertyName="scaleX"
+        android:valueFrom="1.0"
+        android:valueTo="2.0"
+        android:valueType="floatType" />
+    ```
+
+    在程序中使用XML定义的属性动画也非常简单，代码如下所示。
+
+    ```java
+    Animator anim = AnimatorInflater.loadAnimator(context, R.animator.scalex);
+    anim.setTarget(view);
+    anim.start();
+    ```
+
+- `View#animate()`
+
+    `View#animate()` 方法可以直接驱动属性动画，代码如下所示。
+
+    ```java
+    view.animate()
+            .alpha(valueAlpha)
+            .y(valueY)
+            .setDuration(durationMillis)
+            .withStartAction(new Runnable() {
+                @Override
+                public void run() {
+                }
+            })
+            .withEndAction(new Runnable() {
+                @Override
+                public void run() {
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                        }
+                    });
+                }
+            }).start();
+    ```
 
 ### 布局动画
 
