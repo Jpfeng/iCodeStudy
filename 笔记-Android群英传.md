@@ -2077,11 +2077,106 @@ animation.setAnimationListener(new Animation.AnimationListener() {
 
 ### 布局动画
 
+布局动画指作用在 `ViewGroup` 上，给 `ViewGroup` 增加 `View` 时添加一个动画过渡效果。最简单的布局动画是在 `ViewGroup` 的 XML 中，使用以下代码来打开布局动画。当 `ViewGroup` 添加 `View` 时，子 View 会呈现逐渐显示的过渡效果。不过这个效果是 Android 默认的显示的过渡效果，且无法使用自定义的动画来替换这个效果。
+
+```xml
+android:animateLayoutChanges="true"
+```
+
+另外，还可以使用 `LayoutAnimationController` 类自定义一个子 View 的过渡效果，代码如下所示。给 `LinearLayout` 增加了一个视图动画，让子 View 在出现的时候，有一个缩放动画效果。
+
+```java
+LinearLayout ll = (LinearLayout) findViewById(R.id.ll);
+// 设置过渡动画
+ScaleAnimation sa = new ScaleAnimation(fromX, toX, fromY, toY);
+sa.setDuration(durationMillis);
+// 设置布局动画的显示属性
+LayoutAnimationController lac = new LayoutAnimationController(sa, delay);
+lac.setOrder(LayoutAnimationController.ORDER_NORMAL);
+// 为 ViewGroup 设置布局动画
+ll.setLayoutAnimation(lac);
+```
+
+`LayoutAnimationController` 的第一个参数是需要作用的动画。第二个参数是每个子 View 显示的延迟时间。当延迟时间不为 0 时，可以设置子 View 显示的顺序，如下所示。
+
+- `LayoutAnimationController.ORDER_NORMAL`  —— 顺序
+- `LayoutAnimationController.ORDER_RANDOM`  —— 随机
+- `LayoutAnimationController.ORDER_REVERSE` —— 反序
+
 ### 插值器 `Interpolators`
+
+插值器是动画中一个非常重要的概念。通过插值器 `Interpolators` ，可以定义动画变换速率。这一点非常类似物理中的加速度，其作用主要是控制目标变量的变化值进行对应的变化。同样的一个动画变换起始值，在不同的插值器作用下，每个单位时间内所达到的变化值也是不一样的。例如一个位移动画，如果使用线性插值器，那么在持续时间内，单位时间所移动的距离都是一样的；如果使用加速度插值器，那么单位时间内所移动的距离将越来越快。
 
 ### 自定义动画
 
+创建自定义动画只需要实现它的 `applyTransformation(float, Transformation)` 方法。该方法第一个 `float` 参数是插值器的时间因子，这个因子是由动画当前完成的百分比和当前时间所对应的插值计算所得，取值范围为 0.0 到 1.0 。第二个 `Transformation` 参数是矩阵的封装类，一般使用这个类来获得当前的矩阵对象。通过改变获得的 `Matrix` 对象，可以实现动画效果。对于 `Matrix` 的变换操作，基本可以实现任何效果的动画。
+
+```java
+@Override
+protected void applyTransformation(float interpolatedTime, Transformation t) {
+    final Matrix matrix = t.getMatrix();
+    // 通过 matrix 的各种操作来实现动画
+}
+```
+
+通常情况下，还需要覆盖父类的 `initialize(int, int, int, int)` 方法实现一些初始化工作。
+
+**例：** 模拟电视机关闭的效果。
+
+要实现电视机关闭的效果，让一个图片纵向比例不断缩小即可。其中 `mCenterWidth` ， `mCenterHeight` 即为缩放的中心点，设置为图片中心即可。
+
+```java
+@Override
+protected void applyTransformation(float interpolatedTime, Transformation t) {
+    final Matrix matrix = t.getMatrix();
+    matrix.preScale(1, 1 - interpolatedTime, mCenterWidth, mCenterHeight);
+}
+```
+
+还可以设置更精确的插值器，并将 0.0 到 1.0 的时间因子拆分成不同的过程，从而对不同的过程采用不同的动画效果，模拟更加真实的特效。
+
+**例：** 使用 `android.graphics.Camera` 类实现自定义 3D 动画效果。
+
+`Camera` 类封装了 openGL 的 3D 动画，从而可以非常方便地创建 3D 动画效果。把 `Camera` 想象成一个真实的摄像机，当物体固定在某处时，只要移动摄像机就能拍摄到具有立体感的图像，因此通过它可以实现各种 3D 效果。
+
+首先，在初始化方法中对 `Camera` 和其他参数进行初始化，代码如下。
+
+```java
+@Override
+public void initialize(int width, int height, int parentWidth, int parentHeight) {
+    super.initialize(width, height, parentWidth, parentHeight);
+    // 设置默认时长
+    setDuration(durationMillis);
+    // 动画结束后保留状态
+    setFillAfter(true);
+    // 设置默认插值器
+    setInterpolator(new BounceInterpolator());
+    mCenterWidth = width / 2;
+    mCenterHeight = height / 2;
+}
+```
+
+接下来，定义动画的进行过程。
+
+```java
+@Override
+protected void applyTransformation(float interpolatedTime, Transformation t) {
+    final Matrix matrix = t.getMatrix();
+    mCamera.save();
+    // 使用 Camera 设置旋转的角度
+    mCamera.rotateY(mRotateY * interpolatedTime);
+    // 将旋转变换作用到 matrix 上
+    mCamera.getMatrix(matrix);
+    mCamera.restore();
+    // 通过 pre 方法设置矩阵作用前的偏移量来改变旋转中心
+    matrix.preTranslate(mCenterWidth, mCenterHeight);
+    matrix.postTranslate(-mCenterWidth, -mCenterHeight);
+}
+```
+
 ### SVG 矢量动画
+
+可伸缩矢量图形 (Scalable Vector Graphics) 是用于网络的基于矢量的图形。其使用 XML 格式定义图形，图像在放大或改变尺寸的情况下其图形质量不会有所损失。它是万维网联盟的标准，与诸如 `DOM` 和 `XSL` 之类的 W3C 标准是一个整体。 Android 在 5.0 之后添加了对 `SVG` 的 `<path>` 标签的支持。
 
 ### 动画示例
 
