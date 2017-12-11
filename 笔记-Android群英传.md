@@ -9,6 +9,7 @@
 - [第五章 Android Scroll 分析](#chap5)
 - [第六章 Android 绘图机制](#chap6)
 - [第七章 Android 动画机制](#chap7)
+- [第八章 Activity 与 Activity 调用栈](#chap8)
 
 ------
 
@@ -2178,7 +2179,594 @@ protected void applyTransformation(float interpolatedTime, Transformation t) {
 
 可伸缩矢量图形 (Scalable Vector Graphics) 是用于网络的基于矢量的图形。其使用 XML 格式定义图形，图像在放大或改变尺寸的情况下其图形质量不会有所损失。它是万维网联盟的标准，与诸如 `DOM` 和 `XSL` 之类的 W3C 标准是一个整体。 Android 在 5.0 之后添加了对 `SVG` 的 `<path>` 标签的支持。
 
+#### SVG 标签与指令
+
+使用 `<path>` 标签创建 SVG ，就像用指令的方式来控制一只画笔。 `<path>` 标签所支持的指令有以下几种。
+
+- `M X Y` = moveTo(x ,y)
+
+    将画笔移动到指定的坐标位置，但不发生绘制。
+
+- `L X Y` = lineTo(x, y)
+
+    绘制直线的指令，画直线到指定的坐标位置。参数是一个点坐标，如 `L 200 400` 绘制直线。
+
+- `H X` = horizontalLineTo(x)
+
+    画水平线到指定的 X 坐标位置。
+
+- `V Y` = verticalLineTo(y)
+
+    画垂直线到指定的 Y 坐标位置。
+
+- `C X1 Y1 X2 Y2 ENDX ENDY` = curveTo(x1, y1, x2, y2, endX, endY)
+
+    三次贝赛曲线。
+
+- `S X2 Y2 ENDX ENDY` = smoothCurveTo(x2, y2, endX, endY)
+
+    三次贝赛曲线。
+
+- `Q X Y ENDX ENDY` = quadraticBelzierCurve(x, y, endX, endY)
+
+    二次贝赛曲线。
+
+- `T ENDX ENDY` = smoothQuadraticBelzierCurveto(endX, endY)
+
+    映射前面路径后的终点。
+
+- `A RX RY XROTATION FLAG1 FLAG2 X Y` = ellipticalArc(rX, rY, xRotation, flag1, flag2, x, y)
+
+    绘制一段弧线，且允许弧线不闭合。可以把 `A` 命令绘制的弧线想象成是椭圆的某一段。 `A` 指令以下有七个参数。
+
+  - `RX` 与 `RY`
+
+    指所在椭圆的半轴大小。
+
+  - `XROTATION`
+
+    指椭圆的 X 轴与水平方向顺时针方向夹角，可以想象成一个水平的椭圆绕中心点顺时针旋转 `XROTATION` 的角度。
+
+  - `FLAG1`
+
+    只有两个值。 1 表示大角度弧线， 0 为小角度弧线。
+
+  - `FLAG2`
+
+    只有两个值，确定从起点至终点的方向。 1 为顺时针， 0 为逆时针。
+
+  - `X`，`Y`
+
+    终点坐标。
+
+- `Z` = closePath()
+
+    关闭路径。
+
+在使用上面的指令时，需要注意以下几点。
+
+- 坐标轴以 `(0,0)` 为中心。 X 轴水平向右， Y 轴水平向下。
+- 所有指令大小写均可。大写绝对定位，参照全局坐标系。小写相对定位，参照父容器坐标系。
+- 指令和数据间的空格可以省略。
+- 同一指令出现多次可以只用一个。
+
+#### SVG 编辑器
+
+[SVG 在线编辑器](http://editor.method.ac/ "SVG Editor")
+
+通过可视化编辑好图形后，点击 `View` → `Source` 可以转换为 SVG 代码。
+
+#### 在 Android 中使用
+
+Android 中提供了两个 API 帮助支持 SVG 。其中 `VectorDrawable` 可以创建基于 XML 的 SVG 图形。 `AnimatedVectorDrawable` 可以实现动画效果。
+
+- `VectorDrawable`
+
+    在 XML 中创建静态的 SVG 图形，通常会形成树形结构。 `path` 是 SVG 树形结构中的最小单位，而通过 `group` 可以将不同的 `path` 进行组合。
+
+    在 XML 中创建 SVG 图形，首先需要在 XML 中通过 `<vector>` 标签来声明对 SVG 的使用。其中包含两组宽高属性 `height` 与 `width` 和 `viewportHeight` 与 `viewportWidth` 。这两组属性分别具有不同的含义。 `height` 与 `width` 表示该 SVG 图形的具体大小，而 `viewportHeight` 与 `viewportWidth` 表示 SVG 图形划分的比例。后面在绘制 path 时所使用的参数，就是根据这两个值来进行转换的。例如，将 200dp 划分为 100 份，在绘制图形时使用坐标 `(50,50)` ，则意味着该坐标位于该 SVG 图形正中间。因此，`height` 和 `width` 的比例与 `viewportHeight` 和 `viewportWidth` 的比例，必须保持一致，不然图形就会发生压缩、形变。接下来通过添加 `<group>` 标签和 `<path>` 标签绘制一个 SVG 图形，其中 `pathData` 属性是绘制 SVG 图形所用到的指令。
+
+    ```xml
+    <vector xmlns:android="http://schemas.android.com/apk/res/android"
+        android:height="200dp"
+        android:width="200dp"
+        android:viewportHeight="100"
+        android:viewportWidth="100">
+            <group
+                android:name="test"
+                android:rotation="0">
+
+            <path
+                android:fillColor="@android:color/holo_blue_light"
+                android:pathData="
+                M 25 50
+                a 25,25 0 1,0 50,0" />
+            </group>
+    </vector>
+    ```
+
+    这里使用了 `android:fillColor` 属性绘制图形，因此绘制出来的是一个填充的图形。如果要绘制一个非填充的图形，可以使用以下属性。
+
+    ```xml
+    android:strokeColor="@android:color/holo_blue_light"
+    android:strokeWidth="2"
+    ```
+
+- `AnimatedVectorDrawable`
+
+    `AnimatedVectorDrawable` 的作用是给 `VectorDrawable` 提供动画效果。 Google 的工程师将 `AnimatedVectorDrawable` 比喻为一个胶水，通过 `AnimatedVectorDrawable` 来连接静态的 `VectorDrawable` 和动态的 `objectAnimator` 。
+
+    使用 `AnimatedVectorDrawable` 实现 SVG 图形的动画效果，首先在 XML 文件中通过 `<animated-vector>` 标签来声明对 `AnimatedVectorDrawable` 的使用，并指定其作用的 `path` 或 `group` 。 `target` 中指定的的 `name` 属性，必须与 `VectorDrawable` 中需要作用的 `name` 属性保持一致，这样系统才能找到要实现动画的元素。最后，通过 `target` 的 `animation` 属性，将一个动画作用到对应 `name` 的元素上。
+
+    动画效果的实现，是通过属性动画来实现的，只是属性稍有不同。在 `<group>` 标签和 `<path>` 标签中添加 `rotation` ， `fillColor` 或 `pathData` 等属性，在 `objectAnimator` 中就可以通过指定 `android:propertyName` 属性来选择控制哪一种属性。通过 `android:valueFrom` 和 `android:valueTo` 属性，可以控制动画的关键值。需要注意的是，如果控制属性 `pathData` ，需要添加一个属性 `android:valueType="pathType"` 告诉系统进行 `pathData` 变换。
+
+    ```xml
+    <animated-vector
+        xmlns:android="http://schemas.android.com/apk/res/android"
+        android:drawable="@drawable/vector" >
+
+            <target
+            android:name="test"
+            android:animation="@anim/anim_path1" />
+    </animated-vector>
+    ```
+
+    当 XML 文件准备好，就可以在代码中控制 SVG 动画。可以将 `AnimatedVectorDrawable` XML 文件设置给一个 `ImageView` 显示。然后在程序中使用以下代码开始 SVG 动画。
+
+    ```java
+    ((Animatable) imageView.getDrawable()).start();
+    ```
+
+#### SVG 动画示例
+
+**例：** 线图动画。图像初始状态为两条平行的水平线条。开始 SVG 动画后，上下两根线条会从中间折断并向中间折起，最终形成一个 X 。
+
+首先创建静态 SVG 图形，即静态的 `VectorDrawable` 。 `path1` 和 `path2` 分别绘制了两条直线的初始状态。每条直线由三个点控制，即起始点和中点，形成初始状态。
+
+```xml
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="200dp"
+    android:height="200dp"
+    android:viewportHeight="100"
+    android:viewportWidth="100">
+
+    <group>
+        <path
+            android:name="path1"
+            android:pathData="
+                M 20,80
+                L 50,80 80,80"
+            android:strokeColor="@android:color/holo_green_dark"
+            android:strokeLineCap="round"
+            android:strokeWidth="5" />
+
+        <path
+            android:name="path2"
+            android:pathData="
+                M 20,20
+                L 50,20 80,20"
+            android:strokeColor="@android:color/holo_green_dark"
+            android:strokeLineCap="round"
+            android:strokeWidth="5" />
+    </group>
+</vector>
+```
+
+接下来实现变换的 `objectAnimator` 动画。定义 `pathType` 的属性动画，并指定变换的关键值。需要注意，在 SVG 的路径变换属性动画中，变换前后的节点数必须相同。这就是前面需要使用三个点来绘制一条直线的原因，因为后面需要中点进行动画变换。
+
+```xml
+<!-- anim_path1 -->
+<objectAnimator xmlns:android="http://schemas.android.com/apk/res/android"
+    android:duration="500"
+    android:interpolator="@android:anim/bounce_interpolator"
+    android:propertyName="pathData"
+    android:valueFrom="
+        M 20,80
+        L 50,80 80,80"
+    android:valueTo="
+        M 20,80
+        L 50,50 80,80"
+    android:valueType="pathType" />
+```
+
+```xml
+<!-- anim_path2 -->
+<objectAnimator xmlns:android="http://schemas.android.com/apk/res/android"
+    android:duration="500"
+    android:interpolator="@android:anim/bounce_interpolator"
+    android:propertyName="pathData"
+    android:valueFrom="
+        M 20,20
+        L 50,20 80,20"
+    android:valueTo="
+        M 20,20
+        L 50,50 80,20"
+    android:valueType="pathType" />
+```
+
+有了 `VectorDrawable` 和 `objectAnimator` ，剩下的只需要使用 `AnimatedVectorDrawable` 来将它们黏合在一起。
+
+```xml
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:drawable="@drawable/trick">
+
+    <target
+        android:name="path1"
+        android:animation="@animator/anim_path1" />
+
+    <target
+        android:name="path2"
+        android:animation="@animator/anim_path2" />
+</animated-vector>
+```
+
+最后只要在代码中启动动画即可。
+
+```java
+@Override
+protected void onCreate(Bundle savedInstanceState) {
+    super.onCreate(savedInstanceState);
+    setContentView(R.layout.activity_main);
+    imageView = (ImageView) findViewById(R.id.image);
+    imageView.setOnClickListener(new View.OnClickListener() {
+        @Override
+        public void onClick(View v) {
+            animate();
+        }
+    });
+}
+
+private void animate() {
+    Drawable drawable = imageView.getDrawable();
+    if (drawable instanceof Animatable) {
+        ((Animatable) drawable).start();
+    }
+}
+```
+
+**例：** 模拟三球仪。三球仪是天文学中一个星象仪器，用来模拟地、月、日三个星体的绕行轨迹。即地球绕太阳旋转，月球绕地球旋转的同时，绕太阳旋转。
+
+首先绘制一个静态的地、月、日三星系统。在 `sun` 这个 `group` 中，有一个 `earth` 的 `group` 。同时使用 `android:pivotX` 和 `android:pivotY` 属性设置其旋转中心。这两个 `group` 分别代表了太阳系系统和地月系系统。
+
+```xml
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="200dp"
+    android:height="200dp"
+    android:viewportHeight="100"
+    android:viewportWidth="100">
+
+    <group
+        android:name="sun"
+        android:pivotX="60"
+        android:pivotY="50"
+        android:rotation="0">
+
+        <path
+            android:name="path_sun"
+            android:fillColor="@android:color/holo_red_light"
+            android:pathData="
+                M 50,50
+                a 10,10 0 1,0 20,0
+                a 10,10 0 1,0 -20,0" />
+
+        <group
+            android:name="earth"
+            android:pivotX="75"
+            android:pivotY="50"
+            android:rotation="0">
+
+            <path
+                android:name="path_earth"
+                android:fillColor="@android:color/holo_blue_light"
+                android:pathData="
+                    M 70,50
+                    a 5,5 0 1,0 10,0
+                    a 5,5 0 1,0 -10,0" />
+
+            <group>
+                <path
+                    android:fillColor="@android:color/darker_gray"
+                    android:pathData="
+                        M 90,50
+                        m -5 0
+                        a 4,4 0 1,0 8 0
+                        a 4,4 0 1,0 -8,0" />
+            </group>
+        </group>
+    </group>
+</vector>
+```
+
+下面对这两个 `group` 分别进行 SVG 动画。为了简化示例，我们让两个动画效果的实现完全相同。
+
+```xml
+<!-- anim_sun -->
+<objectAnimator xmlns:android="http://schemas.android.com/apk/res/android"
+    android:duration="4000"
+    android:propertyName="rotation"
+    android:valueFrom="0"
+    android:valueTo="360" />
+```
+
+```xml
+<!-- anim_earth -->
+<objectAnimator xmlns:android="http://schemas.android.com/apk/res/android"
+    android:duration="4000"
+    android:propertyName="rotation"
+    android:valueFrom="0"
+    android:valueTo="360" />
+```
+
+最后，使用 `AnimatedVectorDrawable` 黏合 SVG 静态图形和动画。
+
+```xml
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:drawable="@drawable/solar">
+
+    <target
+        android:name="sun"
+        android:animation="@animator/anim_sun" />
+
+    <target
+        android:name="earth"
+        android:animation="@animator/anim_earth" />
+</animated-vector>
+```
+
+启动动画的方法与之前的实例相同，这里不再赘述。
+
+**例：** 轨迹动画。使用 `trimPathStart` 动画，可以像画出一个图形一样来进行绘制，从而形成一个轨迹动画效果。
+
+首先需要用 SVG 绘制一个搜索栏，代码如下所示。
+
+```xml
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="160dp"
+    android:height="30dp"
+    android:viewportHeight="30"
+    android:viewportWidth="160">
+
+    <path
+        android:name="search"
+        android:pathData="M 141,17
+            A 9,9 0 1,1 142,16
+            L 149,23"
+        android:strokeAlpha="0.8"
+        android:strokeColor="#ff3570be"
+        android:strokeLineCap="round"
+        android:strokeWidth="2" />
+
+    <path
+        android:name="bar"
+        android:pathData="M 0,23
+            L 149,23"
+        android:strokeAlpha="0.8"
+        android:strokeColor="#ff3570be"
+        android:strokeLineCap="square"
+        android:strokeWidth="2" />
+</vector>
+```
+
+下面利用属性动画实现动画效果。将 `propertyName` 设置为 `trimPathStart` 。这个属性就是利用 0 到 1 的百分比来按照轨迹绘制 SVG 图像。类似的，还有 `trimPathEnd` 这个属性，实现代码如下所示。
+
+```xml
+<objectAnimator xmlns:android="http://schemas.android.com/apk/res/android"
+    android:duration="1000"
+    android:interpolator="@android:interpolator/accelerate_decelerate"
+    android:propertyName="trimPathStart"
+    android:valueFrom="0"
+    android:valueTo="1"
+    android:valueType="floatType" />
+```
+
+最后，使用 `AnimatedVectorDrawable` 黏合 SVG 静态图形和动画。
+
+```xml
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:drawable="@drawable/search_bar">
+
+    <target
+        android:name="search"
+        android:animation="@animator/anim_search" />
+</animated-vector>
+```
+
+启动动画的方法与之前的实例相同，这里不再赘述。
+
 ### 动画示例
+
+**例：** 灵动菜单。当用户点击小红点后，弹出菜单，并带有一个缓冲的过渡动画。它具有用户交互性，所以必须使用属性动画。只需要针对每个不同的按钮设置不同的动画，并设置相应的差值器就可以实现展开、合拢效果了。
+
+```java
+private void startAnim() {
+    ObjectAnimator anim0 = ObjectAnimator.ofFloat(mImageViews.get(0), "alpha", 1f, 0.5f);
+    ObjectAnimator anim1 = ObjectAnimator.ofFloat(mImageViews.get(1), "translationY", 200f);
+    ObjectAnimator anim2 = ObjectAnimator.ofFloat(mImageViews.get(2), "translationX", 200f);
+    ObjectAnimator anim3 = ObjectAnimator.ofFloat(mImageViews.get(3), "translationY", -200f);
+    ObjectAnimator anim4 = ObjectAnimator.ofFloat(mImageViews.get(4), "translationX", -200f);
+    AnimatorSet set = new AnimatorSet();
+    set.setDuration(500);
+    set.setInterpolator(new BounceInterpolator());
+    set.playTogether(anim0, anim1, anim2, anim3, anim4);
+    set.start();
+}
+```
+
+为按钮设置点击事件即可完成整个功能。
+
+```java
+@Override
+public void onClick(View v) {
+    switch (v.getId()) {
+        case R.id.imageView0:
+            startAnim();
+            break;
+    }
+}
+```
+
+**例：** 计时器动画。当用户点击后，数字会不断增加。实现计时器动画效果的方法有很多，这里为了演示 `ValueAnimator` 的效果，因而使用 `ValueAnimator` 实现。
+
+完成效果只需要借助 `ValueAnimator` 实现数字的不断增加，并将值设置给 `TextView` 即可。
+
+```java
+ValueAnimator valueAnimator = ValueAnimator.ofInt(0, 100);
+valueAnimator.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
+    @Override
+    public void onAnimationUpdate(ValueAnimator animation) {
+        tv.setText(animation.getAnimatedValue());
+    }
+});
+valueAnimator.setDuration(3000);
+valueAnimator.start();
+```
+
+**例：** 下拉展开动画。当点击一个 View 的时候，显示下面隐藏的一个 View 。要实现这个功能，需要将 View 的 `visibility` 属性由 `gone` 设置为 `visible` 即可，但是这个过程是瞬间完成的，还需要在 View 显示时增加一个动画效果。使用 `ValueAnimator` 模拟这样的效果，让隐藏的 View 的高度不断发生变化而不是一下增大到目标值。
+
+首先，写一个简单的布局。两个 `LinearLayout` 一个显示，一个隐藏。
+
+```xml
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical">
+
+    <LinearLayout
+        android:layout_width="fill_parent"
+        android:layout_height="wrap_content"
+        android:background="@android:color/holo_blue_bright"
+        android:gravity="center_vertical"
+        android:onClick="llClick"
+        android:orientation="horizontal">
+
+        <ImageView
+            android:id="@+id/app_icon"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:src="@mipmap/ic_launcher" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginLeft="5dp"
+            android:gravity="left"
+            android:text="Click Me"
+            android:textSize="30sp" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/hidden_view"
+        android:layout_width="match_parent"
+        android:layout_height="40dp"
+        android:background="@android:color/holo_orange_light"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:visibility="gone">
+
+        <ImageView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:src="@mipmap/ic_launcher" />
+
+        <TextView
+            android:id="@+id/tv_hidden"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:text="I am hidden"
+            android:textSize="20sp" />
+    </LinearLayout>
+</LinearLayout>
+```
+
+当点击上面的 `LinearLayout` 时，需要获取到隐藏的 `LinearLayout` 最终需要到达的高度，即我们的目标值。通过将布局文件中的 dp 值转化为像素值即可。然后给这个过程增加动画效果。需要使用 `ValueAnimator` 来创建一个从 0 到目标值的数值发生器，并由此来改变 View 的布局属性。通过这样一个 `ValueAnimator` 就可以实现显示、隐藏的动画效果了。完整代码如下所示。
+
+```java
+public class AnimActivity extends AppCompatActivity {
+
+    private LinearLayout mHiddenView;
+    private float mDensity;
+    private int mHiddenViewMeasuredHeight;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_anim);
+        mHiddenView = (LinearLayout) findViewById(R.id.hidden_view);
+        // 获取像素密度
+        mDensity = getResources().getDisplayMetrics().density;
+        // 获取布局的高度
+        mHiddenViewMeasuredHeight = (int) (mDensity * 40 + 0.5);
+    }
+
+    public void llClick(View view) {
+        if (mHiddenView.getVisibility() == View.GONE) {
+            // 打开动画
+            animateOpen(mHiddenView);
+        } else {
+            // 关闭动画
+            animateClose(mHiddenView);
+        }
+    }
+
+    private void animateOpen(final View view) {
+        view.setVisibility(View.VISIBLE);
+        ValueAnimator animator = createDropAnimator(view, 0, mHiddenViewMeasuredHeight);
+        animator.start();
+    }
+
+    private void animateClose(final View view) {
+        int origHeight = view.getHeight();
+        ValueAnimator animator = createDropAnimator(view, origHeight, 0);
+        animator.addListener(new AnimatorListenerAdapter() {
+            @Override
+            public void onAnimationEnd(Animator animation) {
+                view.setVisibility(View.GONE);
+            }
+        });
+        animator.start();
+    }
+
+    private ValueAnimator createDropAnimator(final View view, int start, int end) {
+        ValueAnimator animator = ValueAnimator.ofInt(start, end);
+        animator.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
+            @Override
+            public void onAnimationUpdate(ValueAnimator valueAnimator) {
+                int value = (Integer) valueAnimator.getAnimatedValue();
+                ViewGroup.LayoutParams layoutParams = view.getLayoutParams();
+                layoutParams.height = value;
+                view.setLayoutParams(layoutParams);
+            }
+        });
+        return animator;
+    }
+}
+```
+
+[↑ 目录](#index)
+
+------
+
+<h2 id="chap8">Activity 与 Activity 调用栈</h2>
+
+### Activity
+
+### Android 任务栈
+
+### Activity 启动模式
+
+- `stardard`
+- `singleTop`
+- `singleTask`
+- `singleInstance`
+
+### Intent 的 Flag
+
+### 清空任务栈
+
+### 任务栈使用
 
 [↑ 目录](#index)
 
