@@ -10,6 +10,7 @@
 - [第六章 Android 绘图机制](#chap6)
 - [第七章 Android 动画机制](#chap7)
 - [第八章 Activity 与 Activity 调用栈](#chap8)
+- [第九章 系统信息与安全机制](#chap9)
 
 ------
 
@@ -2753,20 +2754,167 @@ public class AnimActivity extends AppCompatActivity {
 
 ### Activity
 
+`Activity` 作为四大组件中出现频率最高的组件，我们在 Android 的各个地方都能看见它的影子。`Activity` 是与用户交互的第一接口，它提供了一个用户完成指令的窗口。当开发者创建 `Activity` 之后，通过调用 `setContentView(View)` 方法给该 `Activity` 指定一个界面布局，并以此为基础提供给用户交互的接口。系统采用 `Activity 栈` 的方式来管理 `Activity` 。
+
+`Activity` 一个特点就是拥有多种形态。它可以在多种形态间进行切换，以此来控制自己的生命周期。
+
+- `Active/Running`
+
+    此时 `Activity` 处于 `Activity 栈` 的最顶层。可见，并与用户进行交互。
+
+- `Paused`
+
+    当 `Activity` 失去焦点，被一个在栈顶的非全屏的 `Activity` 或一个透明的 `Activity` 覆盖时， `Activity` 就转化为 `Paused` 形态。但它只是失去了与用户交互的能力，所有状态信息、成员变量都还保持。只有在系统内存极低的情况下，才会被系统回收掉。
+
+- `Stopped`
+
+    如果一个 `Activity` 被另一个 `Activity` 完全覆盖，那么 `Activity` 就会进入 `Stopped` 形态。此时它不再可见，但却依然保持了所有状态信息和成员变量。
+
+- `Killed`
+
+    当 `Activity` 被系统回收掉或者 `Activity` 从来没有创建过， `Activity` 就处于 `Killed` 形态。
+
+#### Activity 生命周期
+
+![Activity 生命周期](/media/android_activity_lifecycle.png)
+
+图中列举了很多 `Activity` 的生命周期状态。其中只有三个状态是稳定的，其他状态都是过渡状态，很快就会结束。
+
+- `Resumed`
+
+    这个状态即前面所说的 `Active/Running` 形态。此时， `Activity` 处于 `Activity 栈` 顶，处理用户的交互。
+
+- `Paused`
+
+    当 `Activity` 的一部分被挡住的时候进入这个状态，这个状态下的 `Activity` 不会接收用户输入。
+
+- `Stopped`
+
+    当 `Activity` 完全被覆盖时进入这个状态，此时 `Activity` 不可见，仅在后台运行。
+
+开发者不必实现所有的生命周期方法。但知道每一个生命周期状态的含义，可以让我们更好地掌控 `Activity` ，让它能更好地完成你所期望的效果。
+
+- 启动与销毁
+
+    在系统调用 `onCreate(Bundle)` 之后，就会马上调用 `onStart()` 。然后继续调用 `onResume()` 以进入 `Resumed` 状态，最终会停在 `Resumed` 状态，完成启动。销毁时，系统会调用 `onDestroy()` 来结束一个 Activity 的声明周期让它回到 `Killed` 形态。
+
+  - `onCreat()`
+
+    创建基本的 UI 元素。
+
+  - `onPause()` 与 `onStop()`
+
+    清除 Activity 的资源，避免浪费。
+
+  - `onDestory()`
+
+    因为引用会在 Activity 销毁的时候销毁，而线程不会，所以清除开启的线程。
+
+- 暂停与恢复
+
+    当栈顶的 Activity 部分不可见后，会导致 Activity 进入 `Pause` 形态，此时就会调用 `onPause()` 方法。当结束阻塞后，就会调用 `onResume()` 方法恢复到 `Resume` 形态。
+
+  - `onPause()`
+
+    释放系统资源。如 `Camera` ， `sensor` , `receivers` 。
+
+  - `onResume()`
+
+    需要重新初始化在 `onPause()` 中释放的资源。
+
+- 停止
+
+    栈顶的 `Activity` 部分不可见时，后续会有两种可能。从部分不可见到可见，也就是恢复过程。从部分不可见到完全不可见，也就是停止过程。系统在当前 Activity 不可见的时候，总会调用 `onPause()` 方法。每当 Activity 由不可见到可见时，都会调用 `onStart()` 方法。
+
+- 重新创建
+
+    如果 Activity 长时间处于 `Stopped` 形态而且此时系统需要更多内存或者系统内存极为紧张时，系统就会回收你的 Activity 。此时系统为了补偿你，会将 Activity 状态通过 `onSaveInstanceState(Bundle)` 方法保存到 `Bundle` 对象中，你也可以增加额外的键值对存入 `Bundle` 对象以保存这些状态。当你需要重新创建这些 Activity 的时候，保存的 `Bundle` 对象就会传递到 Activity 的 `onRestoreInstanceState(Bundle)` 方法与 `onCreate(Bundle)` 方法中。这也是 `onCreate(Bundle)` 方法中参数 `Bundle` 的来源。
+
+    `onSaveInstanceState(Bundle)` 方法并不是每次 Activity 离开前台时都会调用。如果用户使用 `finish()` 方法结束了 Activity ，则不会调用。而且 Android 系统已经默认实现了控件的状态缓存，以此来减少开发者需要实现的缓存逻辑。
+
 ### Android 任务栈
+
+一个 Android 应用程序功能通常会被拆分为多个 Activity ，而各个 Activity 之间通过 Intent 进行连接。而 Android 系统通过栈结构来保存整个应用的 Activity 。栈底的元素是整个任务栈的发起者。一个合理的任务调度栈不仅是性能的保证，更是提供性能的基础。
+
+当一个应用启动时，如果当前环境中不存在该应用的任务栈，系统就会创建一个任务栈。此后，这个应用所启动的 Activity 都将在这个任务栈中被管理。这个栈也被称为一个 `Task` ，即表示若干个 Activity 的集合，他们组合在一起形成一个 `Task` 。另外，需要特别注意的是，一个 `Task` 中的 Activity 可以来自不同的应用，同一个应用的 Activity 也可能不在一个 `Task` 中。
+
+栈结构为后进先出 (Last In First Out) 的线性表。根据 Activity 在当前栈结构中的位置，来决定该 Activity 的状态。正常情况下的 Android 任务栈，当一个 Activity 启动了另一个 Activity 的时候，新启动的 Activity 就会置于任务栈的顶端，并处于活动状态。启动它的 Activity 依然保留在任务栈中，处于停止状态，当用户按下返回键或者调用 `finish()` 方法时，系统会移除顶部 Activity ，让后面的 Activity 恢复活动状态。当然，可以通过在 `AndroidMainifest.xml` 文件中的属性 `android:launchMode` 或者是通过 `Intent` 的 `flag` 来设置特权来打破这一模式。
 
 ### Activity 启动模式
 
 - `stardard`
+
+    默认的启动模式，如果不指定 Activity 的启动模式，则默认使用这种方式启动 Activity 。这种启动模式每次都会创建新的 Activity 实例覆盖在原 Activity 上。
+
 - `singleTop`
+
+    如果指定启动 Activity 为 `singleTop` 模式，在启动时系统会判断当前栈顶 Activity 是不是要启动的 Activity 。如果是则不创建新的 Activity 而直接引用这个 Activity 。如果不是则创建新的 Activity 。这种启动模式虽然不会创建新的实例，但是系统会在 Activity 启动时调用 `onNewIntent(Intent)` 方法。
+
 - `singleTask`
+
+    `singleTask` 模式与 `singleTop` 模式类似。 `singleTop` 是检测栈顶元素是否是需要启动的 Activity ，而 `singleTask` 是检测整个 Activity 栈中是否存在当前需要启动的 Activity 。如果存在，则将该 Activity 置于栈顶，并将栈中该 Activity 以上的 Activity 全部销毁。如果是其他程序以 `singleTask` 模式来启动这个 Activity ，那么它将创建一个新的任务栈。需要注意的是，如果启动的模式为 `singleTask` 的 Activity 已经在一个后台任务栈中了，那么启动后，后台的任务栈将一起被切换到前台。
+
+    这种启动模式通常可以用来退出整个应用：将主 Activity 设为 `singleTask` 模式，然后在要退出的 Activity 中转到主 Activity ，从而将主 Activity 之上的 Activity 都清除。然后重写主 Activity 的 `onNewIntent(Intent)` 方法，在方法中调用 `finish()`，将最后一个 Activity 结束掉。
+
 - `singleInstance`
+
+    `singleInstance` 这种启动模式和使用的浏览器工作原理类似。在多个程序中访问浏览器时，如果当前浏览器没有打开，则打开浏览器，否则会在当前打开的浏览器中访问。申明为 `singleInstance` 的 Activity 会出现在一个新的任务栈中，而且该任务栈中只存在这一个 Activity 。这种启动模式常用于需要与程序分离的界面。
+
+关于 `singleTop` 和 `singleInstance` 这两种启动模式还有一点需要特殊说明：如果在一个 `singleTop` 或者 `singleInstance` 的 Activity 中通过 `StartActivityForResult(Intent, int)` 方法来启动另一个 Activity ，那么系统将直接返回 `Activity.RESULT_CANCELED` 而不会再去等待返回。这是由于系统在 Framework 层做了对这两种启动模式的限制。 Android 开发者认为，不同 `Task` 之间，默认是不能传递数据的。如果一定要传递，那就只能通过 `Intent` 来绑定数据。
 
 ### Intent 的 Flag
 
+- `Intent.FLAG_ACTIVITY_NEW_TASK`
+
+    使用一个新的 `Task` 启动一个 Activity 。该 Flag 通常使用在从 Service 中启动 Activity 的场景。由于在 Service 中并不存在 Activity 栈，所以使用该 Flag 来创建一个新的 Activity 栈，并创建新的 Activity 实例。
+
+- `FLAG_ACTIVITY_SINGLE_TOP`
+
+    使用 `singletop` 模式启动 Activity 。与指定 `android:launchMode="singleTop"` 效果相同。
+
+- `FLAG_ACTIVITY_CLEAR_TOP`
+
+    使用 `singleTask` 模式启动 Activity 。与指定 `android:launchMode="singleTask"` 效果相同。
+
+- `FLAG_ACTIVITY_NO_HISTORY`
+
+    使用这种模式启动 Activity ，当该 Activity 启动其他 Activity 后，该 Activity 就消失了，不会保留在 Activity 栈中。
+
 ### 清空任务栈
 
+可以在 `AndroidMainifest.xml` 文件中的 `<activity>` 标签中使用以下几种属性来清理任务栈。
+
+- `clearTaskOnLaunch`
+
+    `clearTaskOnLaunch` 属性就是在每次返回该 Activity 时，都将该 Activity 之上的所有 Activity 都清除。通过这个属性，可以让这个 `Task` 每次在初始化的时候，都只有这一个 Activity 。
+
+- `finishOnTaskLaunch`
+
+    `finishOnTaskLaunch` 属性与 `clearTaskOnLaunch` 属性类似，只不过 `clearTaskOnLaunch` 作用在别人身上，而 `finishOnTaskLaunch` 作用在自己身上。通过这个属性，当离开这个 Activity 所处的 Task ，用户再返回时，该 Activity 就会被结束掉。
+
+- `alwaysRetainTaskState`
+
+    如果将Activity的这个属性设置为 `true` ，那么该 Activity 所在的 `Task` 将不接受任何清理命令，一直保持当前 `Task` 状态。
+
 ### 任务栈使用
+
+我们使用 Activity 任务栈的各种启动模式和清理方法，是为了更好地使用 App 中的 Activity 。合理地设置 Activity 的启动模式会让程序运行更有效率，用户体验更好。但任务栈虽好，却也不能滥用。如果过度地使用 Activity 任务栈，则会导致整个 App 的栈管理混乱。不仅不利于以后程序的拓展，而且在容易出现由于任务栈导致的显示异常。这样的 Bug 是很难调试的。所以，在 App 中使用 Activity 任务栈一定要根据实际项目的需要，而不是为了使用任务栈而使用任务栈。
+
+[↑ 目录](#index)
+
+------
+
+<h2 id="chap9">系统信息与安全机制</h2>
+
+### 获取系统信息
+
+### `PackageManager`
+
+### `ActivityManager`
+
+### 解析 `Packages.xml`
+
+### Android 安全机制
 
 [↑ 目录](#index)
 
