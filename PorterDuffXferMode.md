@@ -2,7 +2,12 @@
 
 PorterDuffXferMode
 
-| Mode     | Alpha                           | Color                                                                   |
+- As = Source Alpha */\*源透明度，即画笔的透明度\*/*
+- Ad = Destination Alpha */\*目标透明度，即已存在的透明度\*/*
+- Cs = Source Color */\*源颜色，即画笔的颜色\*/*
+- Cd = Destination Color */\*目标颜色，即已存在的颜色\*/*
+
+| Mode     | Alpha Out                       | Color Out                                                               |
 | -------- | ------------------------------- | ----------------------------------------------------------------------- |
 | CLEAR    | 0                               | 0                                                                       |
 | SRC      | As                              | Cs                                                                      |
