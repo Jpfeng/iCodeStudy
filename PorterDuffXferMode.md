@@ -12,7 +12,7 @@ PorterDuffXferMode
 | CLEAR    | 0                               | 0                                                                       |
 | SRC      | As                              | Cs                                                                      |
 | DST      | Ad                              | Cd                                                                      |
-| SRC_OVER | As + (1 - As) \* Ad             | Cs + (1 - As) \* Ad                                                     |
+| SRC_OVER | As + (1 - As) \* Ad             | Cs + (1 - As) \* Cd                                                     |
 | DST_OVER | Ad + (1 - Ad) \* As             | Cd + (1 - Ad) \* Cs                                                     |
 | SRC_IN   | As \* Ad                        | Cs \* Ad                                                                |
 | DST_IN   | As \* Ad                        | Cd \* As                                                                |
