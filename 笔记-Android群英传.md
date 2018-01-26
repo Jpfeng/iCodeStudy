@@ -2908,11 +2908,176 @@ public class AnimActivity extends AppCompatActivity {
 
 ### 获取系统信息
 
+要获取系统的配置信息，通常可以从以下两个方面获取。
+
+- `android.os.Build`
+
+    该类里面的信息非常丰富，它包含了系统编译时的大量设备、配置信息。
+
+  - Build.BOARD // 主板
+  - Build.BRAND // Android 系统定制商
+  - Build.SUPPORTED_ABIS // CPU 指令集
+  - Build.DEVICE // 设备参数
+  - Build.DISPLAY // 显示屏参数
+  - Build.FINGERPRINT // 唯一编号
+  - Build.SERIAL // 硬件序列号
+  - Build.ID // 修订版本列表
+  - Build.MANUFACTURER // 硬件制造商
+  - Build.MODEL // 版本
+  - Build.HARDWARE // 硬件名
+  - Build.PRODUCT // 手机产品名
+  - Build.TAGS // 描述 Build 的标签
+  - Build.TYPE // Builder 类型
+  - Build.VERSION.CODENAME // 当前开发代号
+  - Build.VERSION.INCREMENTAL // 源码控制版本号
+  - Build.VERSION.RELEASE // 版本字符串
+  - Build.VERSION.SDK_INT // 版本号
+  - Build.HOST // Host值
+  - Build.USER // User名
+  - Build.TIME // 编译时间
+
+- `SystemProperty`
+
+    `SystemProperty` 包含许多系统配置属性值和参数，通过 `System.getProperty(String)` 可以访问到系统的属性值。很多信息与通过 `android.os.Build` 获取的值是相同的。
+
+  - os.version // OS 版本
+  - os.name // OS 名称
+  - os.arch // OS 架构
+  - user.home // Home 属性
+  - user.name // Name 属性
+  - user.dir // Dir 属性
+  - user.timezone // 时区
+  - path.separator // 路径分隔符
+  - line.separator // 行分隔符
+  - file.separator // 文件分隔符
+  - java.vendor.url // Java vender URL 属性
+  - java.class.path // Java Class 路径
+  - java.class.version // Java Class 版本
+  - java.vendor // Java Vender 属性
+  - java.version // Java 版本
+  - java.home // Java Home 属性
+
+这些系统信息最的来源是系统的 `system/build.prop` 文件。
+
 ### `PackageManager`
+
+Android 系统提供 `PackageManager` 负责管理所有已安装的应用。
+
+`PackageManager` 可以通过调用各种方法，返回不同类型的对象。 `PackageManager` 经常使用以下方法。
+
+- `getPackageManager()`
+
+    返回一个 `PackageManager` 对象。
+
+- `getApplicationInfo(String, int)`
+
+    以 `ApplicationInfo` 的形式返回指定包名的 ApplicationInfo 。第一个参数为包名，第二个参数为 Flag 。
+
+- `getApplicationIcon(String)`
+
+    返回指定包名的 Icon 。参数为包名。
+
+- `getInstalledApplications(int)`
+
+    以 `ApplicationInfo` 的形式返回安装的应用。参数为 Flag 。
+
+- `getInstalledPackages(int)`
+
+    以 `PackageInfo` 的形式返回安装的应用。参数为 Flag 。
+
+- `queryIntentActivities(Intent, int)`
+
+    返回指定 `intent` 的 `ResolveInfo` 对象、 `Activity` 集合。第一个参数为 `Intent` 对象，第二个参数为 Flag 。
+
+- `queryIntentServices(Intent, int)`
+
+    返回指定 `intent` 的 `ResolveInfo` 对象、 `Service` 集合。第一个参数为 `Intent` 对象，第二个参数为 Flag 。
+
+- `resolveActivity(Intent, int)`
+
+    返回指定 `intent` 的 `Activity` 。第一个参数为 `Intent` 对象，第二个参数为 Flag 。
+
+- `resolveService(Intent, int)`
+
+    返回指定 `intent` 的 `Service` 。第一个参数为 `Intent` 对象，第二个参数为 Flag 。
+
+下面列举了一些常用的系统封装信息。
+
+- `ActivityInfo`
+
+    `ActivityInfo` 封装了在 `AndroidMainifest.xml` 文件中 `<activity>` 和 `<receiver>` 之间的所有信息，包括 `name` ， `icon` ， `label` ， `launchmod` 等。
+
+- `ServiceInfo`
+
+    `ServiceInfo` 封装了 `<service>` 之间的所有信息。
+
+- `ApplicationInfo`
+
+    `ApplicationInfo` 封装了 `<application>` 之间的信息。特别的是， `ApplicationInfo` 包含很多 `Flag` ，`FLAG_SYSTEM` 表示为系统应用， `FLAG_UPDATED_SYSTEM_APP` 表示为经过升级的系统应用， `FLAG_EXTERNAL_STORAGE` 表示为安装在 SDCard 上的应用等。通过这些 `Flag` 可以很方便地判断应用的类型。
+
+- `PackageInfo`
+
+    `PackageInfo` 用于封装 `AndroidMainifest.xml` 文件的所有 `Activity` ， `Service` 等信息。
+
+- `ResolveInfo`
+
+    `ResolveInfo` 封装的是包含 `<intent>` 信息的上一级信息，所以它可以返回 `ActivityInfo` ， `ServiceInfo` 等包含 `<intent>` 的信息，它经常用来帮助我们找到那些包含特定 Intent 条件的信息，如带分享功能、播放功能的应用。
 
 ### `ActivityManager`
 
+`PackageManager` 重点在于获得应用的包信息，而 `ActivityManager` 重点在与获得在运行的应用程序信息。 `ActivityManager` 封装了不少对象。
+
+- `ActivityManager.MemoryInfo`
+
+    `ActivityManager.MemoryInfo` 有几个非常重要的字段
+
+  - `availMem` 系统可用内存
+  - `totalMem` 总内存
+  - `threshold` 低内存的阈值，即区分是否低内存的临界值
+  - `lowMemory` 是否处于低内存。
+
+- `Debug.MemoryInfo`
+
+    `ActivityManager.MemoryInfo` 通常用于获取全局的内存使用信息，而 `Debug.MemoryInfo` 用于统计进程下的内存信息。
+
+- `RunningAppProcessInfo`
+
+    `RunningAppProcessInfo` 是运行进程的信息，存储的字段是进程相关的信息。
+
+  - `processName` 进程名
+  - `pid` 进程 pid
+  - `uid` 进程 uid
+  - `pkgList` 该进程下的所有包
+
+- `RunningServiceInfo`
+
+    `RunningServiceInfo` 用于封装运行的服务信息，在它里面同样包含了一些服务进程的信息，同时还有一些其他信息。
+
+  - `activeSince` 第一次被激活的时间、方式
+  - `foreground` 服务是否在后台执行
+
 ### 解析 `Packages.xml`
+
+`packages.xml` 文件位于 `/data/system/` 目录下。在系统初始化的时候， `PackageManager` 的底层实现类 `PackageManagerService` 会扫描系统中的一些特定的目录，并解析其中的 Apk 文件。同时把它获得的应用信息，保存在 `packages.xml` 文件中。当系统中的 Apk 安装、删除、升级时，它也会被更新。
+
+`packages.xml` 文件非常复杂，先了解一下这个文件所包含的信息点标签。
+
+- `<permissions>` 标签
+
+    `<permissions>` 标签定义了目前系统中的所有权限，并分为两类：系统定义的( `package` 属性为 `Android` )和 Apk 定义的( `package` 属性为 Apk 包名)。
+
+- `<package>` 标签
+
+    `<package>` 标签代表了一个 Apk 的属性。其中各节点信息的含义如下所示。
+
+  - `name` Apk 的包名。
+  - `codePath` Apk 安装路径。主要有 `/system/app` 和 `/data/app` 两种。 `/system/app` 存放系统级别的 Apk 或者是厂商定制的 Apk ， `/data/app` 存放用户安装的第三方 Apk 。
+  - `userId` 用户 ID
+  - `version` 版本号
+
+- `<perms>` 标签
+
+    对应 Apk 的 `AndroidManifest.xml` 文件中的 `<uses-permission>` 标签，记录 Apk 的权限信息。
 
 ### Android 安全机制
 
