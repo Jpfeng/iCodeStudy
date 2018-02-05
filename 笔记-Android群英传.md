@@ -11,6 +11,10 @@
 - [第七章 Android 动画机制](#chap7)
 - [第八章 Activity 与 Activity 调用栈](#chap8)
 - [第九章 系统信息与安全机制](#chap9)
+- [第十章 Android 性能优化](#chap10)
+- [第十一章 搭建云端服务器](#chap11)
+- [第十二章 Android Lollipop 新特性详解](#chap12)
+- [第十三章 Android 实例提高](#chap13)
 
 ------
 
@@ -3080,6 +3084,303 @@ Android 系统提供 `PackageManager` 负责管理所有已安装的应用。
     对应 Apk 的 `AndroidManifest.xml` 文件中的 `<uses-permission>` 标签，记录 Apk 的权限信息。
 
 ### Android 安全机制
+
+#### 安全机制
+
+- 代码混淆 proguard
+
+    混淆关键代码、替换命名让破坏者阅读困难，同时也可以压缩代码、优化编译后的 Java 字节码。
+
+- `AndroidMainifest.xml` 文件权限声明、权限检查机制
+
+    任何应用程序在使用 Android 受限资源的时候，都需要显示向系统声明所需要的权限。只有当一个应用具有相应的权限，才能在申请受限资源的时候，通过权限机制的检查并使用系统的 `Binder` 对象完成对系统服务的调用。
+
+    Android 系统通常按照以下顺序来检查操作者的权限。首先，判断 permission 名称。如果为空则直接返回 `PERMISSION_DENIED` 。其次，判断 Uid 。如果为 `0` 则为Root权限，不做权限控制；如果为 `System Server` 的 Uid 则为系统服务，不做权限控制；如果 Uid 与参数中的请求 Uid 不同，则返回 `PERMISSION_DENIED` 。最后，通过调用 `PackageManagerService.checkUidPermission(String, int)` 方法判断该 Uid 是否具有相应的权限。该方法会去 XML 的权限列表和系统级的 `platform.xml` 中进行查找。
+
+    但是这种机制也有先天性不足，如以下几项。
+
+  - 被授予的权限无法停止。
+  - 在应用声明 App 使用权限时，用户无法针对部分权限进行限制。
+  - 权限的声明机制与用户的安全理念相关。
+
+- 数字证书
+
+    Android 中所有的 App 都会有一个数字证书，这就是 App 的签名。数字证书用于保护 App 的作者对其 App 的信任关系，只有拥有相同数字签名的 App ，才会在升级时被认为是同一 App 。而且 Android 系统不会安装没有签名的 App 。
+
+- Uid 、访问权限控制
+
+    Android 继承了 Linux 的安全特性。通常情况下，只有 System 、 root 用户才有权限访问到系统文件，而一般用户无法访问。
+
+- 沙箱隔离
+
+    Android 的 App 运行在虚拟机中，因此才有沙箱机制，可以让应用之间相互隔离。通常情况下，不同的应用之间不能互相访问，每个 App 都有与之对应的 Uid ，每个 App 也运行在单独的虚拟机中，与其他应用完全隔离。在实现安全机制的基础上，也让应用之间能够互不影响，即使一个应用崩溃，也不会导致其他应用异常。
+
+#### 安全隐患
+
+- 代码漏洞
+
+    这个问题存在于世界上所有的程序中，没有谁敢保证自己的程序永远不会有 Bug 。遇到这种问题，只能尽快升级系统 OS 版本、更新补丁，才能杜绝利用漏洞的攻击者。
+
+- Root 风险
+
+    Root 权限是指 Android 的系统管理员权限，具有 Root 权限的用户可以访问和修改手机中几乎所有的文件。 Root 后的手机少了 Linux 的天然屏障，整个系统核心就完全暴露在入侵者面前，在没有察觉的情况下大肆破坏。针对普通用户，希望尽量不要 Root 手机以免带来不必要的损失。
+
+- 安全机制不健全
+
+    由于 Android 的权限管理机制并不完美。所以很多手机开发商，通常会在 ROM 中增加自己的一套权限管理工具来帮助用户控制手机中应用的权限。
+
+- 用户安全意识
+
+    用户可以通过在正规应用市场下载应用、并在安装应用时通过列出来的应用权限申请信息来大致判断一个应用的安全性。
+
+- Android 开发原则与安全
+
+    Google 本着开源的精神开放了 Android 的源代码，但随之而来的各种安全问题也让 Android 饱受诟病。过度的开放与可定制化，不仅造成了 Android 的碎片化严重，同时也给很多不法应用以可乘之机。
+
+#### APK 反编译
+
+***TODO***
+
+#### APK 加密
+
+使用 ProGuard 对 Apk 进行混淆处理，用无意义的字母来重命名类、字段、方法和属性。还可以删除无用的类、字段、方法和属性，以及删除没用的注释，最大限度地优化字节码文件。ProGuard 的配置在模块的 `build.gradle` 文件中。 `minifyEnabled` 属性就是控制是否启用 ProGuard 的开关。
+
+```groovy
+buildTypes {
+    release {
+        minifyEnabled false
+        proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+    }
+}
+```
+
+[↑ 目录](#index)
+
+------
+
+<h2 id="chap10">Android 性能优化</h2>
+
+### 布局优化
+
+在 Android 中，系统通过 `VSYNC` 信号触发对 UI 的渲染、重绘，其间隔时间是 16ms 。如果不能在16ms内完成绘制，就会造成当前应当重绘的帧被未完成的逻辑阻塞。该帧会被丢弃，等待下次信号再继续绘制，导致 16*2ms 内都显示同一帧画面，这就是画面卡顿的原因。
+
+Android 系统提供了检测 UI 渲染时间的工具。打开 `开发者选项` 选择 `Profile GPU Rendering` ，并选择 `On screen as bars` 。这时候在屏幕上将显示一些条形图。每一条柱状线都包含三部分，蓝色代表测量绘制 Display List 的时间，红色代表 OpenGL 渲染 Display List 所需要的时间，黄色代表 CPU 等待 GPU 处理的时间。中间的绿色横线代表 VSYNC 时间 16ms ，需要尽量将所有条形图都控制在这条绿线之下。
+
+过度绘制会浪费很多 CPU 、 GPU 资源。 Android 开发者选项中提供了 `Debug GPU Overdraw` 工具。激活后，可以通过界面上的颜色来判断 Overdraw 的次数。尽量增大蓝色的区域、减少红色区域。
+
+在 Android 中，系统对 View 进行测量、布局和绘制时，是通过对 View 树的遍历来进行操作的。如果一个 View 树的高度太高，就会严重影响测量、布局和绘制的速度。 Google 建议 View 树的高度不宜超过10层。在布局时，需要根据自身布局的特点来选择不同的 Layout 组件，从而避免通过某一种 Layout 组件来实现功能时的局限性造成嵌套过多的情况发生。
+
+#### `<include>` 标签
+
+可以使用 `<include>` 标签来定义一些共通 UI 。在使用该共通UI的布局文件中通过 `<include>` 标签的 `layout` 属性添加对这个共通 UI 的 ID 的引用。
+
+#### `<ViewStub>` 延迟加载
+
+`<ViewStub>` 是一个非常轻量级的组件，它不仅不可视，而且大小为 0 。在布局中添加 `<ViewStub>` 节点并使用 `layout` 属性引用待加载的布局。要重新加载待显示的布局，可以通过 `findViewById(int)` 方法找到 `<ViewStub>` 组件，然后通过调用 `ViewStub` 的 `setVisibility(VISIBLE)` 或调用 `ViewStub` 的 `inflate()` 方法来显示这个 View 。这两种方式都可以让 ViewStub 重新展开，显示引用的布局。唯一的区别就是 `inflate()` 方法可以返回引用的布局，从而可以再通过 `View.findViewById(int)` 方法找到对应的控件。一旦 `<ViewStub>` 被设置为可见或是被 inflate 了， `<ViewStub>` 就不存在了，取而代之的是被 inflate 的 Layout ，并将这个 Layout 的 ID 重新设置为 `<ViewStub>` 中通过 `android:inflatedId` 属性所指定的 ID 。
+
+`<ViewStub>` 标签与设置 `View.GONE` 这种方式来隐藏一个 View 的区别是， `<ViewStub>` 标签只会在显示时，才去渲染整个布局，而 `View.GONE` ，在初始化布局树的时候就已经添加在布局树上了，相比之下 `<ViewStub>` 标签的布局具有更高的效率。
+
+#### Hierarchy Viewer
+
+[ViewServer](https://github.com/romainguy/ViewServer)
+
+该工具位于 `sdk\tools` 目录下，在命令行中输入 `hierarchyviewer.bat` 启动程序。选择要调试的进程 → 点击 `Load View Hierarchy` → 点击 `Profile Node` 重新进行计算，获取绘制信息。
+
+### 内存优化
+
+通常内存是指手机的 RAM ，包括以下几个部分。
+
+- 寄存器 `Registers`
+
+    速度最快的存储场所，因为寄存器位于处理器内部。在程序中无法控制。
+
+- 栈 `Stack`
+
+    存放基本类型的数据和对象的引用，但对象本身不存放在栈中，而是存放在堆中。
+
+- 堆 `Heap`
+
+    堆内存用来存放由 `new` 创建的对象和数组。在堆中分配的内存，由 Java 虚拟机的自动垃圾回收器（GC）管理。
+
+    在程序中，可以使用如下所示的代码来获得堆的大小，所谓的内存分析，正是分析 Heap 中的内存状态。
+
+    ```java
+    ActivityManager manager = (ActivityManager)getSystemService(Context.ACTIVITY_SERVICE);
+    int heapSize = manager.getLargeMemoryClass();
+    ```
+
+- 静态存储区域 `Static Field`
+
+    静态存储区域就是指在固定的位置存放应用程序运行时一直存在的数据， Java 在内存中专门划分了一个静态存储区域来管理一些特殊的数据变量如静态的数据变量。
+
+- 常量池 `Constant Pool`
+
+    JVM 虚拟机必须为每个被装载的类型维护一个常量池。常量池就是该类型所用到常量的一个有序集合，包括直接常量（基本类型，String）和对其他类型、字段和方法的符号引用。
+
+Java 创建了垃圾收集器线程（Garbage Collection Thread）来自动进行资源的管理。这样做的好处是大大降低了程序开发人员对内存管理的繁琐工作。但这也带来了很多问题，例如 Java 的 GC 是系统自动进行的，但何时进行却是开发者无法控制的，即使调用 `System.gc()` 方法，也只是建议系统进行 GC ，但系统是否采纳你的建议，那就不一定了。 JVM 虚拟机虽然能够自动控制 GC ，但是再强大的算法，也难免会存在部分对象忘记回收的现象发生，这就是造成内存泄漏的原因。
+
+#### `Bitmap` 优化
+
+- 使用适当分辨率和大小的图片
+
+    由于 Android 系统在做资源适配的时候会对不同分辨率文件夹下的图片进行缩放来适配相应的分辨率，如果图片分辨率与资源文件夹分辨率不匹配或者图片分辨率太高，就会导致系统消耗更多的内存资源。同时，在适当的时候，应该显示合适大小的图片，例如在图片列表界面可以使用图片的缩略图thumbnails，而在显示详细图片的时候再显示原图；或者在对图像要求不高的地方，尽量降低图片的精度。
+
+- 及时回收内存
+
+    一旦使用完 Bitmap 后，一定要及时使用 `bitmap.recycle()` 方法释放内存资源。自 Android 3.0 之后，由于 Bitmap 被放置到了堆中，其内存由 GC 管理，就不需要进行释放了。
+
+- 使用图片缓存
+
+    通过内存缓存（LruCache）和硬盘缓存（DiskLruCache）可以更好地使用 Bitmap 。
+
+#### 代码优化
+
+- 对常量使用 `static` 修饰符。
+- 使用静态方法，静态方法会比普通方法提高 15% 左右的访问速度。
+- 减少不必要的成员变量，这点在 Android Lint 工具上已经集成检测了。如果一个变量可以定义为局部变量，则会建议你不要定义为成员变量。
+- 减少不必要的对象。使用基础类型会比使用对象更加节省资源，同时更应该避免频繁创建短作用域的变量。
+- 尽量不要使用枚举、少用迭代器。
+- 对 `Cursor` 、 `Receiver` 、 `Sensor` 、 `File` 等对象，要非常注意对它们的创建、回收与注册、解注册。
+- 避免使用 IOC 框架。 IOC 通常使用注解、反射来进行实现，虽然现在 Java 对反射的效率已经进行了很好的优化，但大量使用反射依然会带来性能的下降。
+- 使用 RenderScript 、 OpenGL 来进行非常复杂的绘图操作。
+- 使用 `SurfaceView` 来替代 `View` 进行大量、频繁的绘图操作。
+- 尽量使用视图缓存，而不是每次都执行 `inflate()` 方法解析视图。
+
+### Lint
+
+Android Lint 工具是 Android Studio 中集成的一个 Android 代码提示工具，它可以给你的布局、代码提供非常强大的帮助。
+
+### Memory Monitor
+
+Memory Monitor 是 Android Studio 自带的内存监视工具，它可以很好地帮助我们进行内存实时分析。通过点击 Android Studio 右下角的 `Memory Monitor` 标签，打开工具。
+
+### TraceView
+
+TraceView 是一个 Android 下的可视化性能调查工具，它用来分析 TraceView 日志。
+
+- 生成 TraceView 日志
+
+  - 通过代码生成精确范围的 TraceView 日志
+
+    通过调用 `Debug.startMethodTracing()` 方法开启监听，通过调用 `Debug.stopMethodTracing()` 方法结束监听。我们可以使用这两个方法来包围要监听的代码块。 TraceView 的日志将会保存到 `/sdcard/dmtrace.trace` 目录下，因此，需要在 Mainifest 文件中增加如下所示的权限。
+
+    ```xml
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+    ```
+
+  - 通过 Android Device Monitor 生成 TraceView 日志
+
+    打开 Android Studio 的 Android Device Monitor 工具，选择要调试的进程，点击工具栏中的 `start method profiling` 按钮。弹出提示，选择监听的模式。 TraceView 提供了两种监听方式。
+
+    - 整体监听
+
+        跟踪每个方法执行的全部过程，这种方式资源消耗较大。
+
+    - 抽样监听
+
+        按照指定的频率来进行抽样调查，这种方式需要执行较长时间来获取较准确的样本数据。
+
+    执行一段时间后，再次点击 `start method profiling` 按钮即可结束监听。
+
+- 打开 TraceView 日志
+
+    导出的 TraceView 日志文件可以使用 SDK 中的 `sdk\tools\traceview.bat` 工具打开。或者在 Android Device Monitor 工具中的 `File` 菜单下选择 `Open File…` 选项打开 TraceView 日志文件。
+
+- 分析 TraceView 日志
+
+    TraceView 的分析界面分为两部分，上面是用于显示方法执行时间的时间轴区域，下面是显示详细信息的 profile 区域。时间轴区域显示了不同线程在不同的时间段内的执行情况，在时间轴中，每一行都代表了一个独立的线程。使用鼠标滚轮可以放大时间轴。不同的色块代表了不同的执行方法，色块的长度，代表了方法所执行的时间。 profile 区域内显示了你选择的色块所代表的方法在该色块所处的时间段内的性能分析。在 profile 区域中主要显示以下的信息。
+
+    - Incl CPU Time —— 某方法占用CPU的时间。
+    - Excl CPU Time —— 某方法本身（不包括子方法）占用CPU的时间。
+    - Incl Real Time —— 某方法真正执行的时间。
+    - Excl Real Time —— 某方法本身（不包括子方法）真正执行的时间。
+    - Calls + RecurCalls —— 调用次数+递归回调的次数。
+
+### Memory Analyzer Tool
+
+Memory Analyzer Tool 工具是一个分析内存的强力助手。
+
+- 生成 HPROF 文件
+
+    打开 Android Studio 的 Android Device Monitor 工具，选择要监听的线程，并点击菜单栏中的 `Update Heap` 按钮。在 `Heap` 标签中，点击 `Cause GC` 按钮，就会显示出当前的内存状态。点击菜单栏的 `Dump HPROF File` 按钮，等待几秒钟后，系统就会生成一个 `.hprof` 文件。不过这个文件还不能直接使用 MAT 工具进行分析，需要进行格式转换。在命令行下，切换到 SDK 的 `platform-tools` 目录下，使用 `hprof-conv` 工具帮助我们进行转换，命令格式为 `hprof-conv infile outfile` 。生成的文件就可以进行内存分析了。
+
+- 分析 HPROF 文件
+
+    打开 MAT 工具，选择 `Open a Heap Dump` 选项。等待文件导入后，显示分析结果。 MAT 功能强大，这里主要看以下几个功能。
+
+  - Histogram
+
+    Histogram 直方图，用于显示内存中每个对象的数量、大小和名称。打开 `Histogram` 标签，在选择的对象上单击鼠标右键，在弹出的快捷菜单中选择 `List objects-with incoming references` 选项查看具体的对象。
+
+  - Dominator Tree
+
+    Dominator Tree 支配树会将内存中的对象按照大小进行排序，并显示对象之间的引用结构。打开 `Dominator Tree` 标签，通过分析内存占用大的对象来找出内存消耗的原因。
+
+### `Dumpsys` 命令
+
+使用 `Dumpsys` 命令可以列出 Android 系统相关的信息和服务状态。
+
+[Dumpsys的官方信息](https://source.android.com/devices/input/diagnostics?hl=zh-cn)
+
+常用的 `Dumpsys` 参数：
+
+| 命令       | 功能                      |
+| --------- | ------------------------- |
+| activity  | 显示所有的 Activity 栈的信息 |
+| meminfo   | 内存信息                   |
+| battery   | 电池信息                   |
+| package   | 包信息                     |
+| wifi      | 显示 Wi-Fi 信息            |
+| alarm     | 显示 alarm 信息            |
+| procstats | 显示内存状态                |
+
+[↑ 目录](#index)
+
+------
+
+<h2 id="chap11">搭建云端服务器</h2>
+
+***TODO***
+
+[↑ 目录](#index)
+
+------
+
+<h2 id="chap12">Android Lollipop 新特性详解</h2>
+
+### Material Design
+
+### MD 主题
+
+### Palette
+
+### 视图
+
+### 阴影
+
+### Tinting
+
+### Clipping
+
+### 列表
+
+### 卡片
+
+### Activity 过渡动画
+
+### MD 动画效果
+
+### Toolbar
+
+### Notification
+
+[↑ 目录](#index)
+
+------
+
+<h2 id="chap13">Android 实例提高</h2>
+
+***TODO***
 
 [↑ 目录](#index)
 
